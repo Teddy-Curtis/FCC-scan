@@ -1,0 +1,22 @@
+name: fcc-study
+channels:
+  - anaconda
+  - conda-forge
+  - pytorch
+  - nvidia
+dependencies:
+  - python
+  - pyaml
+  - xrootd
+  - uproot
+  - awkward
+  - numba
+  - pyarrow
+  - pandas
+  - matplotlib
+  - vector
+  - tqdm
+  - scikit-learn
+  - jupyter
+  - tensorboard
+  - boost-histogram

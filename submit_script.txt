@@ -1,0 +1,11 @@
+executable = execute_main.sh
+output = runs/output.out
+error = runs/err.err
+log = runs/log.log
+
+request_gpus = 1
+JobBatchName = train_pNN
++MaxRuntime = 172800
++OnExitHold   = ExitStatus != 0
+getenv        = True
+queue 1
