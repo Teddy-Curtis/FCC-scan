@@ -20,7 +20,7 @@ swap in the ```setup.sh``` file as well.
 
 To install with conda:
 ```
-conda create -f environment.yml
+conda env create -f environment.yml
 ```
 
 Following this run:
