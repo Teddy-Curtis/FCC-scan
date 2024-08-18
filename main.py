@@ -23,79 +23,55 @@ samples = {
     "backgrounds" : {
     "p8_ee_ZZ_ecm240": {
         "files" : ['p8_ee_ZZ_ecm240.root'], 
-        "num_evs": 56162093,
-        "xs": 1.35899,
-        "weight": 0.121
+        "xs": 1.35899
     },
     "p8_ee_WW_ecm240": {
         "files" : ['p8_ee_WW_ecm240.root'],
-        "num_evs": 373375386,
-        "xs": 16.4385,
-        "weight": 0.22
+        "xs": 16.4385
     },
     "wzp6_ee_eeH_ecm240": {
         "files" : ["wzp6_ee_eeH_ecm240.root"],
-        "num_evs": 1200000,
-        "xs": 0.0071611,
-        "weight": 0.0298
+        "xs": 0.0071611
     },
     "wzp6_ee_mumuH_ecm240": {
         "files" : ["wzp6_ee_mumuH_ecm240.root"],
-        "num_evs": 1200000,
-        "xs": 0.0067643,
-        "weight": 0.0282
+        "xs": 0.0067643
     },
     "wzp6_ee_nunuH_ecm240": {
         "files" : ["wzp6_ee_nunuH_ecm240.root"],
-        "num_evs": 3500000,
-        "xs": 0.046191,
-        "weight": 0.066
+        "xs": 0.046191
     },
     "wzp6_ee_tautauH_ecm240": {
         "files" : ["wzp6_ee_tautauH_ecm240.root"],
-        "num_evs": 1200000,
-        "xs": 0.0067518,
-        "weight": 0.0281
+        "xs": 0.0067518
     },
     "wzp6_ee_qqH_ecm240": {
         "files" : ["wzp6_ee_qqH_ecm240.root"],
-        "num_evs": 1000000,
-        "xs": 0.13635,
-        "weight": 0.682
+        "xs": 0.13635
     },
     "wzp6_ee_ee_Mee_30_150_ecm240": {
         "files" : ["wzp6_ee_ee_Mee_30_150_ecm240.root"],
-        "num_evs": 85400000,
-        "xs": 8.305,
-        "weight": 0.486
+        "xs": 8.305
     },
     "wzp6_ee_mumu_ecm240": {
         "files" : ["wzp6_ee_mumu_ecm240.root"],
-        "num_evs": 53400000,
-        "xs": 5.288,
-        "weight": 0.495
+        "xs": 5.288
     },
     "wzp6_ee_tautau_ecm240": {
         "files" : ["wzp6_ee_tautau_ecm240.root"],
-        "num_evs": 52400000,
-        "xs": 4.668,
-        "weight": 0.445
+        "xs": 4.668
     }
     },
     "signal" : {
         "BP1" : {
             "files" : ["e240_bp1_h2h2ll.root", "e240_bp1_h2h2llvv.root"],
             "masses" : [80, 150],
-            "num_evs": 500000,
-            "xs": 0.0069,
-            "weight": 0.069
+            "xs": 0.0069
         },
         "BP2" : {
             "files" : ["e240_bp2_h2h2ll.root", "e240_bp2_h2h2llvv.root"],
             "masses" : [80, 160],
-            "num_evs": 500000,
-            "xs": 0.005895,
-            "weight": 0.059
+            "xs": 0.005895
         },
     },
     "Luminosity" : 500,

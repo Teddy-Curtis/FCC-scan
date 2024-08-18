@@ -6,7 +6,7 @@ that is used for signal extraction.
 **1. Clone this repository**  
 
 ```
-git clone git@github.com:Teddy-Curtis/FCC-Study.git
+git clone git@github.com:Teddy-Curtis/FCC-scan.git
 ```
 
 **2. Install dependencies**  
@@ -14,18 +14,18 @@ git clone git@github.com:Teddy-Curtis/FCC-Study.git
 All the dependencies are stored in ```environment.yml``` and can be installed 
 using conda, mamba or micromamba. 
 
-I used micromamba, but if you want to install with conda then just replace 
-```micromamba``` with ```conda```. Note: You will also have to do the same 
+I used conda, but if you want to install with conda then just replace 
+```conda``` with ```micromamba```. Note: You will also have to do the same 
 swap in the ```setup.sh``` file as well.
 
-To install with micromamba:
+To install with conda:
 ```
-micromamba create -f environment.yml
+conda create -f environment.yml
 ```
 
 Following this run:
 ```
-micromamba activate fcc-study
+conda activate fcc-study
 ```
 
 
@@ -47,3 +47,7 @@ pip install -e .
 ```  
 
 That's it!
+
+To run the network, all you really need to do is make edits to ```main.py```.
+Here, you will first want to put all of the signal samples into the sample 
+dictionary, along with all the background samples. This 

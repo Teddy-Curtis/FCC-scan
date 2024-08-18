@@ -37,6 +37,12 @@ def applyCuts(evs):
     )
     return evs[mask]
 
+def getWeight(evs, xs, lumi):
+    n_samples = len(evs)
+    weight = xs * lumi / n_samples
+
+    return weight
+
 
 def getData(samples, cuts=None):
 
@@ -55,7 +61,7 @@ def getData(samples, cuts=None):
                 branches_to_load.remove("n_seljets")
                 evs = tree.arrays(branches_to_load, library="ak")
 
-                weight = sig_dict["weight"]
+                weight = getWeight(evs, sig_dict["xs"], samples["lumi"])
                 evs["weight"] = ak.ones_like(evs.Zcand_m) * weight
 
                 if cuts is not None:
@@ -100,7 +106,7 @@ def getData(samples, cuts=None):
                 branches_to_load.remove("n_seljets")
                 evs = tree.arrays(branches_to_load, library="ak")
 
-                weight = proc_dict["weight"]
+                weight = getWeight(evs, sig_dict["xs"], samples["lumi"])
                 evs["weight"] = ak.ones_like(evs.Zcand_m) * weight
 
                 if cuts is not None:
