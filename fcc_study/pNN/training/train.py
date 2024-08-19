@@ -5,7 +5,6 @@ from tqdm import tqdm
 import os
 import pandas as pd
 import copy
-from torch.utils.tensorboard import SummaryWriter
 from sklearn.model_selection import StratifiedKFold
 import glob
 from collections.abc import MutableMapping
@@ -117,7 +116,6 @@ class EarlyStopper:
 class MyWriter:
     def __init__(self, save_loc):
         self.save_loc = save_loc
-        self.writer = SummaryWriter(save_loc)
         self.all_stats = {}
 
     def addModelGraph(self, model, data, device):
@@ -125,22 +123,12 @@ class MyWriter:
         x, y, masses, w, wc = data[:2]
         x = torch.Tensor(x).to(device)
         masses = torch.Tensor(masses).to(device)
-        # Add model graph
-        self.writer.add_graph(model, (x, masses))
 
     def writeStats(self, train_stats, test_stats, lr, epoch):
         # Write all the stats to the writer
         # Note stats given as a dict -> loop over all keys
         stat_names = list(train_stats.keys())
         for stat in stat_names:
-            self.writer.add_scalars(
-                main_tag=f"{stat}",
-                tag_scalar_dict={
-                    f"train_{stat}": train_stats[stat],
-                    f"test_{stat}": test_stats[stat],
-                },
-                global_step=epoch,
-            )
 
             # Also append to the stats dict (or add if it doesn't exist)
             if not stat in self.all_stats.keys():
@@ -171,9 +159,6 @@ class MyWriter:
         for stat in list(train_stats.keys()):
             metric_dict[f"best_{stat}_train"] = train_stats[stat]
             metric_dict[f"best_{stat}_test"] = test_stats[stat]
-
-        # Now add to the writer
-        self.writer.add_hparams(hparams, metric_dict)
 
     def addWeightHistograms(self, model, epoch):
         # Get histogram of the weights for ONLY the linear layers
@@ -208,34 +193,15 @@ class MyWriter:
                 # layer_num = name.split(".")[1].split(".")[0]
                 # print(f"layer_num = {layer_num}")
                 flattened_weights = layer.weight.flatten()
-                self.writer.add_histogram(
-                    f"weight_{name}",
-                    flattened_weights,
-                    global_step=epoch,
-                    bins="tensorflow",
-                )
 
             if hasattr(layer, "bias"):
                 flattened_weights = layer.bias.flatten()
-                self.writer.add_histogram(
-                    f"bias_{name}",
-                    flattened_weights,
-                    global_step=epoch,
-                    bins="tensorflow",
-                )
 
     def getLinearLayerHist(self, layer, epoch, layer_number):
         flattened_weights = layer.weight.flatten()
         tag = f"layer_weights_{layer_number}"
-        self.writer.add_histogram(
-            tag, flattened_weights, global_step=epoch, bins="tensorflow"
-        )
-
         bias = layer.bias
         tag = f"layer_bias_{layer_number}"
-        self.writer.add_histogram(
-            tag, bias, global_step=epoch, bins="tensorflow"
-        )
 
     def plotOutputDistribution(
         self,
@@ -297,10 +263,9 @@ class MyWriter:
         plt.yscale("log")
         plt.ylim((0.001, 100))
         plt.title(f"Signal vs Background Distributions")
-        self.writer.add_figure(f"SigVsBkg", fig, global_step=epoch)
 
     def closeWriter(self):
-        self.writer.close()
+        pass 
 
 
 def weights_init(m):
@@ -490,7 +455,7 @@ class trainNN:
             batch_size=self.batch_size,
             shuffle=True,
             pin_memory=True,
-            num_workers=8,
+            num_workers=2,
         )
         # loader = self.batchDataStratified(train_data)
 
@@ -520,7 +485,7 @@ class trainNN:
             batch_size=self.batch_size,
             shuffle=True,
             pin_memory=True,
-            num_workers=8,
+            num_workers=2,
         )
         probability, labels, weights = [], [], []
 
@@ -630,7 +595,7 @@ class trainNN:
         probabilities = np.concatenate(probabilities, axis=0)
         return probabilities
 
-    def getProbsForEachMass(self, dataset):
+    def getProbsForEachMass(self, dataset, samples):
         # Find the probs for each sample, for each mass point
         # Think this will be easier as a pandas df
         probabilities = []
@@ -650,13 +615,13 @@ class trainNN:
         print(f"unique_masses = ")
         print(unique_masses)
         # Convert e.g. [80, 100, 120] to string "mH80_mA100_mHch120"
-        mass_strings = self.convertMassesToString(unique_masses)
+        mass_strings = self.convertMassesToString(unique_masses, samples)
         for m, probs in zip(mass_strings, probabilities):
             dataset.data[m] = probs
 
         return dataset.data
 
-    def convertMassesToString(self, masses):
+    def convertMassesToString(self, masses, samples):
         # This finds which BP it it is. This works by finding the nearest
         # rather than the exact because sometimes the masses are not exactly
         # the same after converting with the mass_scaler (before pNN) and
@@ -672,8 +637,8 @@ class trainNN:
             closest_bp = None
             closest_diff = float("inf")
 
-            for bp, info in bp_dict.items():
-                massSum, massDiff = info["sum"], info["diff"]
+            for bp, info in samples['signal'].items():
+                massSum, massDiff = info["masses"][0], info["masses"][1]
                 diff = abs(ms - massSum) + abs(md - massDiff)
                 if diff < closest_diff:
                     closest_bp = bp

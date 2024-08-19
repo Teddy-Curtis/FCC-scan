@@ -7,75 +7,67 @@ from fcc_study.pNN.training.preprocessing_datasetClasses import getData, consist
 from fcc_study.pNN.training.preprocessing_datasetClasses import normaliseWeights, scaleFeatures, CustomDataset
 from fcc_study.pNN.training.train import trainNN
 import copy
-
-data_directory = "data"
+import matplotlib.pyplot as plt
+import mplhep as hep
+import torch.multiprocessing
+torch.multiprocessing.set_sharing_strategy('file_system')
 
 ######################## Define Hyperparams and Model #########################
 base_run_dir = "runs/fcc_scan"
 run_loc = getRunLoc(base_run_dir)
 
-
-#data_directory = "/vols/cms/emc21/idmStudy/HiggsDNA/studies/idmAnalysis/pNN_studies/pNN_run_allYears/ML_data/singleTriggers_preCut"
-print(f"Dataset data_directory = {data_directory}")
-
 samples = {
-    "data_directory" : "data",
     "backgrounds" : {
     "p8_ee_ZZ_ecm240": {
-        "files" : ['p8_ee_ZZ_ecm240.root'], 
+        "files" : ['/vols/cms/emc21/fccStudy/data/p8_ee_ZZ_ecm240.root'], 
         "xs": 1.35899
     },
-    "p8_ee_WW_ecm240": {
-        "files" : ['p8_ee_WW_ecm240.root'],
-        "xs": 16.4385
-    },
     "wzp6_ee_eeH_ecm240": {
-        "files" : ["wzp6_ee_eeH_ecm240.root"],
+        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_eeH_ecm240.root"],
         "xs": 0.0071611
     },
     "wzp6_ee_mumuH_ecm240": {
-        "files" : ["wzp6_ee_mumuH_ecm240.root"],
+        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_mumuH_ecm240.root"],
         "xs": 0.0067643
     },
     "wzp6_ee_nunuH_ecm240": {
-        "files" : ["wzp6_ee_nunuH_ecm240.root"],
+        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_nunuH_ecm240.root"],
         "xs": 0.046191
     },
     "wzp6_ee_tautauH_ecm240": {
-        "files" : ["wzp6_ee_tautauH_ecm240.root"],
+        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_tautauH_ecm240.root"],
         "xs": 0.0067518
     },
     "wzp6_ee_qqH_ecm240": {
-        "files" : ["wzp6_ee_qqH_ecm240.root"],
+        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_qqH_ecm240.root"],
         "xs": 0.13635
     },
     "wzp6_ee_ee_Mee_30_150_ecm240": {
-        "files" : ["wzp6_ee_ee_Mee_30_150_ecm240.root"],
+        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_ee_Mee_30_150_ecm240.root"],
         "xs": 8.305
     },
     "wzp6_ee_mumu_ecm240": {
-        "files" : ["wzp6_ee_mumu_ecm240.root"],
+        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_mumu_ecm240.root"],
         "xs": 5.288
     },
     "wzp6_ee_tautau_ecm240": {
-        "files" : ["wzp6_ee_tautau_ecm240.root"],
+        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_tautau_ecm240.root"],
         "xs": 4.668
     }
     },
     "signal" : {
         "BP1" : {
-            "files" : ["e240_bp1_h2h2ll.root", "e240_bp1_h2h2llvv.root"],
+            "files" : ["/vols/cms/emc21/fccStudy/data/e240_bp1_h2h2ll.root", "/vols/cms/emc21/fccStudy/data/e240_bp1_h2h2llvv.root"],
             "masses" : [80, 150],
             "xs": 0.0069
         },
         "BP2" : {
-            "files" : ["e240_bp2_h2h2ll.root", "e240_bp2_h2h2llvv.root"],
+            "files" : ["/vols/cms/emc21/fccStudy/data/e240_bp2_h2h2ll.root", "/vols/cms/emc21/fccStudy/data/e240_bp2_h2h2llvv.root"],
             "masses" : [80, 160],
             "xs": 0.005895
         },
     },
     "Luminosity" : 500,
-    "directory" : data_directory,
     "test_size" : 0.25 # e.g. 0.2 means 20% of data used for test set
     }
 # Save the samples used for the run
@@ -91,9 +83,6 @@ branches = ['Zcand_m',
  'Zcand_e',
  'Zcand_costheta',
  'Zcand_recoil_m',
- 'photon1_pt',
- 'photon1_eta',
- 'photon1_e',
  'lep1_pt',
  'lep1_eta',
  'lep1_e',
@@ -103,12 +92,6 @@ branches = ['Zcand_m',
  'lep2_e',
  'lep2_charge',
  'lep_chargeprod',
- 'jet1_pt',
- 'jet1_eta',
- 'jet1_e',
- 'jet2_pt',
- 'jet2_eta',
- 'jet2_e',
  'cosDphiLep',
  'cosThetaStar',
  'cosThetaR',
@@ -128,7 +111,7 @@ with open(f"{run_loc}/branches.json", "w") as f:
 
 params = {
         'hyperparams' : { 
-            'epochs' : 500, 
+            'epochs' : 2, 
             'early_stop' : 40,
             'batch_size': 500,
             'optimizer' : 'Adam', 
@@ -149,7 +132,7 @@ params = {
         'model' : 'MLPRelu',
         'model_params' : {
             'input_features' : len(branches) + 2,
-            'fc_params' : [(0.0, 500), (0.0, 500), (0.0, 500), (0.0, 500)],
+            'fc_params' : [(0.0, 300), (0.0, 300), (0.0, 300)],
             'output_classes' : 1,
             'num_masses' : 2,
         }
@@ -219,11 +202,51 @@ trainer = trainNN(params, branches, run_loc)
 trainer.trainModel(train_dataset, test_dataset)
 
 
-train_data = trainer.getProbsForEachMass(train_dataset)
-test_data = trainer.getProbsForEachMass(test_dataset)
+train_data = trainer.getProbsForEachMass(train_dataset, samples)
+test_data = trainer.getProbsForEachMass(test_dataset, samples)
 
 # Now save these
 ak.to_parquet(copy.deepcopy(train_data), f"{run_loc}/train_data.parquet")
 ak.to_parquet(copy.deepcopy(test_data), f"{run_loc}/test_data.parquet")
 
 print("Done!")
+
+# Now do some extra plotting
+# Get list of all the signal names
+sig_procs = np.unique(list(test_data[test_data['class'] == 1].process))
+# Get list of all the background names
+bkg_procs = np.unique(list(test_data[test_data['class'] == 0].process))
+
+# Define the bins for the histogram
+bins = np.linspace(0, 1, 50)
+# Loop over all the signal processes and plot signal versus background
+for sig_proc in sig_procs:
+    plt.close()
+    
+    bkg_hists = []
+    bkg_weights = []
+    for bkg_proc in bkg_procs:
+        # Get each background process
+        bkg = test_data[test_data['process'] == bkg_proc]
+        # Get the histogram for it
+        bkg_hist = np.histogram(ak.flatten(bkg[f'pnn_output_bp{sig_proc}']), bins=bins, weights = bkg['weight'])[0]
+        # append to background list
+        bkg_hists.append(bkg_hist)
+    
+    # Plot all backgrounds, stacked on top of each other
+    _ = hep.histplot(bkg_hists, bins=bins, histtype='fill', label=bkg_procs, stack=True)
+
+    # Now get the signal and plot that on top
+    signal = test_data[test_data['process'] == sig_proc]
+    _ = plt.hist(signal[f'pnn_output_bp{sig_proc}'], bins=bins, histtype='step', 
+                 label=sig_proc, weights = signal['weight'], color='black',
+                 linestyle='--')
+
+    plt.xlabel('PNN output')
+    plt.ylabel('Events')
+    plt.title(f'PNN output for {sig_proc} vs background')
+
+    plt.legend()
+    plt.yscale('log')
+    plt.savefig(f'pnn_output_bp{sig_proc}.png')
+    plt.show()

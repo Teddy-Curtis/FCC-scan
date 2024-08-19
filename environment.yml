@@ -1,4 +1,4 @@
-name: fcc-study
+name: FCC-forAMstudent
 channels:
   - anaconda
   - conda-forge

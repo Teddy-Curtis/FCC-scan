@@ -50,8 +50,7 @@ def getData(samples, cuts=None):
     # First load in the signal samples
     for sig_point, sig_dict in samples['signal'].items():
         print(f"Loading signal point: {sig_point}")
-        files = sig_dict["file"]
-        files = [f"{samples['directory']}/{f}" for f in files]
+        files = sig_dict["files"]
 
         for file in tqdm(files):
             print(f"Loading file: {file.split('/')[-1]}")
@@ -61,7 +60,7 @@ def getData(samples, cuts=None):
                 branches_to_load.remove("n_seljets")
                 evs = tree.arrays(branches_to_load, library="ak")
 
-                weight = getWeight(evs, sig_dict["xs"], samples["lumi"])
+                weight = getWeight(evs, sig_dict["xs"], samples["Luminosity"])
                 evs["weight"] = ak.ones_like(evs.Zcand_m) * weight
 
                 if cuts is not None:
@@ -93,10 +92,9 @@ def getData(samples, cuts=None):
                 events.append(evs)
 
     # Now load in the background samples
-    for proc, proc_dict in samples['background'].items():
+    for proc, proc_dict in samples['backgrounds'].items():
         print(f"Loading background process: {proc}")
-        files = proc_dict["file"]
-        files = [f"{samples['directory']}/{f}" for f in files]
+        files = proc_dict["files"]
 
         for file in tqdm(files):
             print(f"Loading file: {file.split('/')[-1]}")
@@ -106,7 +104,7 @@ def getData(samples, cuts=None):
                 branches_to_load.remove("n_seljets")
                 evs = tree.arrays(branches_to_load, library="ak")
 
-                weight = getWeight(evs, sig_dict["xs"], samples["lumi"])
+                weight = getWeight(evs, sig_dict["xs"], samples["Luminosity"])
                 evs["weight"] = ak.ones_like(evs.Zcand_m) * weight
 
                 if cuts is not None:
@@ -404,7 +402,7 @@ def scaleFeatures(train_data, test_data, branches, run_loc="."):
     # Also scale the masses using the minmax scaler
     # First select just the signal
     sig_data = train_data[train_data["class"] == 1]
-    mass_branches = ["massSum", "massDiff"]
+    mass_branches = ["mH", "mA"]
     mass_scaler = MinMaxScaler()
     numpy_data = convertToNumpy(sig_data, mass_branches)
     mass_scaler.fit(numpy_data)
@@ -428,7 +426,7 @@ class CustomDataset(Dataset):
         train_branches,
         feat_scaler,
         mass_scaler,
-        mass_branches=["massSum", "massDiff"],
+        mass_branches=["mH", "mA"],
     ):
         print("Initialising CustomDataset")
         self.train_branches = train_branches
