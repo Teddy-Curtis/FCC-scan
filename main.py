@@ -11,63 +11,23 @@ import matplotlib.pyplot as plt
 import mplhep as hep
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
+from fcc_study.pNN.training.preprocessing_datasetClasses import saveSignalSamples, saveBackgroundSamples
 
 ######################## Define Hyperparams and Model #########################
-base_run_dir = "runs/fcc_scan"
+base_run_dir = "runs/main_run"
 run_loc = getRunLoc(base_run_dir)
 
+
+# Open up the signal and background sample information
+with open(f"Data/stage2/backgrounds.json", "r") as f:
+    backgrounds = json.load(f)
+with open(f"Data/stage2/signals.json", "r") as f:
+    signals = json.load(f)
+
 samples = {
-    "backgrounds" : {
-    "p8_ee_ZZ_ecm240": {
-        "files" : ['/vols/cms/emc21/fccStudy/data/p8_ee_ZZ_ecm240.root'], 
-        "xs": 1.35899
-    },
-    "wzp6_ee_eeH_ecm240": {
-        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_eeH_ecm240.root"],
-        "xs": 0.0071611
-    },
-    "wzp6_ee_mumuH_ecm240": {
-        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_mumuH_ecm240.root"],
-        "xs": 0.0067643
-    },
-    "wzp6_ee_nunuH_ecm240": {
-        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_nunuH_ecm240.root"],
-        "xs": 0.046191
-    },
-    "wzp6_ee_tautauH_ecm240": {
-        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_tautauH_ecm240.root"],
-        "xs": 0.0067518
-    },
-    "wzp6_ee_qqH_ecm240": {
-        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_qqH_ecm240.root"],
-        "xs": 0.13635
-    },
-    "wzp6_ee_ee_Mee_30_150_ecm240": {
-        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_ee_Mee_30_150_ecm240.root"],
-        "xs": 8.305
-    },
-    "wzp6_ee_mumu_ecm240": {
-        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_mumu_ecm240.root"],
-        "xs": 5.288
-    },
-    "wzp6_ee_tautau_ecm240": {
-        "files" : ["/vols/cms/emc21/fccStudy/data/wzp6_ee_tautau_ecm240.root"],
-        "xs": 4.668
-    }
-    },
-    "signal" : {
-        "BP1" : {
-            "files" : ["/vols/cms/emc21/fccStudy/data/e240_bp1_h2h2ll.root", "/vols/cms/emc21/fccStudy/data/e240_bp1_h2h2llvv.root"],
-            "masses" : [80, 150],
-            "xs": 0.0069
-        },
-        "BP2" : {
-            "files" : ["/vols/cms/emc21/fccStudy/data/e240_bp2_h2h2ll.root", "/vols/cms/emc21/fccStudy/data/e240_bp2_h2h2llvv.root"],
-            "masses" : [80, 160],
-            "xs": 0.005895
-        },
-    },
-    "Luminosity" : 500,
+    "backgrounds" : backgrounds,
+    "signal" : signals,
+    "Luminosity" : 500000,
     "test_size" : 0.25 # e.g. 0.2 means 20% of data used for test set
     }
 # Save the samples used for the run
@@ -111,8 +71,8 @@ with open(f"{run_loc}/branches.json", "w") as f:
 
 params = {
         'hyperparams' : { 
-            'epochs' : 2, 
-            'early_stop' : 40,
+            'epochs' : 400, 
+            'early_stop' : 20,
             'batch_size': 500,
             'optimizer' : 'Adam', 
             'optimizer_params' : {
@@ -123,16 +83,17 @@ params = {
             },
             'scheduler' : 'ReduceLROnPlateau', 
             'scheduler_params' : {
-                "patience" : 10, 
-                'factor' : 0.1,
-                'verbose' : True
+                "patience" : 20, 
+                'factor' : 0.5,
+                'verbose' : True,
+                'eps' : 1e-7 # No point in going smaller than this
             },
             "scheduler_requires_loss" : True
         },
         'model' : 'MLPRelu',
         'model_params' : {
             'input_features' : len(branches) + 2,
-            'fc_params' : [(0.0, 300), (0.0, 300), (0.0, 300)],
+            'fc_params' : [(0.0, 250), (0.2, 250), (0.2, 250), (0.2, 250)],
             'output_classes' : 1,
             'num_masses' : 2,
         }
@@ -206,8 +167,14 @@ train_data = trainer.getProbsForEachMass(train_dataset, samples)
 test_data = trainer.getProbsForEachMass(test_dataset, samples)
 
 # Now save these
-ak.to_parquet(copy.deepcopy(train_data), f"{run_loc}/train_data.parquet")
-ak.to_parquet(copy.deepcopy(test_data), f"{run_loc}/test_data.parquet")
+saveSignalSamples(train_data, run_loc, feat_scaler, branches, run_name = "train")
+saveSignalSamples(test_data, run_loc, feat_scaler, branches, run_name = "test")
+saveBackgroundSamples(train_data, run_loc, feat_scaler, branches, run_name = "train")
+saveBackgroundSamples(test_data, run_loc, feat_scaler, branches, run_name = "test")
+# os.makedirs(f"{run_loc}/data/train", exist_ok=True)
+# os.makedirs(f"{run_loc}/data/test", exist_ok=True)
+# ak.to_parquet(copy.deepcopy(train_data), f"{run_loc}/train_data.parquet")
+# ak.to_parquet(copy.deepcopy(test_data), f"{run_loc}/test_data.parquet")
 
 print("Done!")
 
@@ -218,35 +185,35 @@ sig_procs = np.unique(list(test_data[test_data['class'] == 1].process))
 bkg_procs = np.unique(list(test_data[test_data['class'] == 0].process))
 
 # Define the bins for the histogram
-bins = np.linspace(0, 1, 50)
-# Loop over all the signal processes and plot signal versus background
-for sig_proc in sig_procs:
-    plt.close()
+# bins = np.linspace(0, 1, 50)
+# # Loop over all the signal processes and plot signal versus background
+# for sig_proc in sig_procs:
+#     plt.close()
     
-    bkg_hists = []
-    bkg_weights = []
-    for bkg_proc in bkg_procs:
-        # Get each background process
-        bkg = test_data[test_data['process'] == bkg_proc]
-        # Get the histogram for it
-        bkg_hist = np.histogram(ak.flatten(bkg[f'pnn_output_bp{sig_proc}']), bins=bins, weights = bkg['weight'])[0]
-        # append to background list
-        bkg_hists.append(bkg_hist)
+#     bkg_hists = []
+#     bkg_weights = []
+#     for bkg_proc in bkg_procs:
+#         # Get each background process
+#         bkg = test_data[test_data['process'] == bkg_proc]
+#         # Get the histogram for it
+#         bkg_hist = np.histogram(ak.flatten(bkg[f'pnn_output_bp{sig_proc}']), bins=bins, weights = bkg['weight'])[0]
+#         # append to background list
+#         bkg_hists.append(bkg_hist)
     
-    # Plot all backgrounds, stacked on top of each other
-    _ = hep.histplot(bkg_hists, bins=bins, histtype='fill', label=bkg_procs, stack=True)
+#     # Plot all backgrounds, stacked on top of each other
+#     _ = hep.histplot(bkg_hists, bins=bins, histtype='fill', label=bkg_procs, stack=True)
 
-    # Now get the signal and plot that on top
-    signal = test_data[test_data['process'] == sig_proc]
-    _ = plt.hist(signal[f'pnn_output_bp{sig_proc}'], bins=bins, histtype='step', 
-                 label=sig_proc, weights = signal['weight'], color='black',
-                 linestyle='--')
+#     # Now get the signal and plot that on top
+#     signal = test_data[test_data['process'] == sig_proc]
+#     _ = plt.hist(signal[f'pnn_output_bp{sig_proc}'], bins=bins, histtype='step', 
+#                  label=sig_proc, weights = signal['weight'], color='black',
+#                  linestyle='--')
 
-    plt.xlabel('PNN output')
-    plt.ylabel('Events')
-    plt.title(f'PNN output for {sig_proc} vs background')
+#     plt.xlabel('PNN output')
+#     plt.ylabel('Events')
+#     plt.title(f'PNN output for {sig_proc} vs background')
 
-    plt.legend()
-    plt.yscale('log')
-    plt.savefig(f'pnn_output_bp{sig_proc}.png')
-    plt.show()
+#     plt.legend()
+#     plt.yscale('log')
+#     plt.savefig(f'pnn_output_bp{sig_proc}.png')
+#     plt.show()

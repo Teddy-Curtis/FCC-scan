@@ -1,5 +1,7 @@
 import awkward as ak
 import numpy as np
+import copy, os
+import uproot
 
 
 def convertToNumpy(events: ak.Array, branches: list) -> np.array:

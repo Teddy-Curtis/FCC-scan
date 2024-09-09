@@ -617,7 +617,7 @@ class trainNN:
         # Convert e.g. [80, 100, 120] to string "mH80_mA100_mHch120"
         mass_strings = self.convertMassesToString(unique_masses, samples)
         for m, probs in zip(mass_strings, probabilities):
-            dataset.data[m] = probs
+            dataset.data[m] = ak.flatten(probs)
 
         return dataset.data
 
@@ -644,7 +644,7 @@ class trainNN:
                     closest_bp = bp
                     closest_diff = diff
 
-            masses_strings.append(f"pnn_output_bp{closest_bp}")
+            masses_strings.append(f"pnn_output_{closest_bp}")
 
         print(f"Masses {masses} converted to {masses_strings}")
         return masses_strings

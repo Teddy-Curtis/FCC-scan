@@ -9,7 +9,7 @@ import uproot
 import awkward as ak
 import json
 from fcc_study.pNN.utils import convertToNumpy
-import copy
+import copy, os
 
 
 def flattenFields(evs):
@@ -51,16 +51,20 @@ def getData(samples, cuts=None):
     for sig_point, sig_dict in samples['signal'].items():
         print(f"Loading signal point: {sig_point}")
         files = sig_dict["files"]
+        xses = sig_dict["xs"]
 
-        for file in tqdm(files):
+        for file, xs in tqdm(zip(files, xses)):
             print(f"Loading file: {file.split('/')[-1]}")
             with uproot.open(file, num_workers=16) as f:
-                tree = f["events"]
+                try:
+                    tree = f["events"]
+                except:
+                    continue
                 branches_to_load = list(tree.keys())
                 branches_to_load.remove("n_seljets")
                 evs = tree.arrays(branches_to_load, library="ak")
 
-                weight = getWeight(evs, sig_dict["xs"], samples["Luminosity"])
+                weight = getWeight(evs, float(xs), samples["Luminosity"])
                 evs["weight"] = ak.ones_like(evs.Zcand_m) * weight
 
                 if cuts is not None:
@@ -68,14 +72,15 @@ def getData(samples, cuts=None):
 
                 # I want to add some stuff here as well to make the data more useful
                 class_num = ak.ones_like(evs.Zcand_m)
-                # Get the BP number
-                id_num = int(sig_point.split("BP")[1])
-                evs["id_num"] = ak.ones_like(evs.Zcand_m) * id_num
                 # Also get the masses
                 mH = sig_dict["masses"][0]
                 mA = sig_dict["masses"][1]
                 evs["mH"] = ak.ones_like(evs.Zcand_m) * mH
                 evs["mA"] = ak.ones_like(evs.Zcand_m) * mA
+
+                # Get the BP number
+                id_num = f"mH{mH}_mA{mA}"
+                evs["id_num"] = [id_num] * len(evs.Zcand_m)
 
                 process = sig_point
                 specific_proc = file.split("_")[-1].split(".root")[0]
@@ -95,16 +100,20 @@ def getData(samples, cuts=None):
     for proc, proc_dict in samples['backgrounds'].items():
         print(f"Loading background process: {proc}")
         files = proc_dict["files"]
+        xses = proc_dict["xs"]
 
-        for file in tqdm(files):
+        for file, xs in tqdm(zip(files, xses)):
             print(f"Loading file: {file.split('/')[-1]}")
             with uproot.open(file, num_workers=16) as f:
-                tree = f["events"]
+                try:
+                    tree = f["events"]
+                except:
+                    continue
                 branches_to_load = list(tree.keys())
                 branches_to_load.remove("n_seljets")
                 evs = tree.arrays(branches_to_load, library="ak")
 
-                weight = getWeight(evs, sig_dict["xs"], samples["Luminosity"])
+                weight = getWeight(evs, float(xs), samples["Luminosity"])
                 evs["weight"] = ak.ones_like(evs.Zcand_m) * weight
 
                 if cuts is not None:
@@ -113,9 +122,9 @@ def getData(samples, cuts=None):
                 # I want to add some stuff here as well to make the data more useful
                 class_num = ak.zeros_like(evs.Zcand_m)
 
-                evs["mH"] = [-1] * len(evs)
-                evs["mA"] = [-1] * len(evs)
-                evs["id_num"] = [-1] * len(evs)
+                evs["mH"] = ak.ones_like(evs.Zcand_m) * -1
+                evs["mA"] = ak.ones_like(evs.Zcand_m) * -1
+                evs["id_num"] = ["bkgrnd"] * len(evs.Zcand_m)
 
                 evs["process"] = [proc] * len(evs.Zcand_m)
                 evs["specific_proc"] = [proc] * len(evs.Zcand_m)
@@ -388,6 +397,14 @@ def applyScaler(evs, scaler, branches):
 
     return evs
 
+def applyInverseScaler(evs, scaler, branches):
+    numpy_data = convertToNumpy(evs, branches)
+    trans_numpy_data = scaler.inverse_transform(numpy_data)
+    for i, br in enumerate(branches):
+        evs[br] = trans_numpy_data[:, i]
+    
+    return evs
+
 
 def scaleFeatures(train_data, test_data, branches, run_loc="."):
     print(f"Scaling features")
@@ -514,3 +531,82 @@ class CustomDataset(Dataset):
             self.data[field] = mass_nump[:, i]
 
         return self.data
+
+
+
+def saveSignalSamples(evs, run_loc, scaler, features, run_name = "train"):
+    print(f"Saving signal samples for {run_name}")
+    sig = evs[evs['class'] == 1]
+
+    # Find the unique processes, and loop over them
+    unique_procs = np.unique(sig['process'])
+    for proc in unique_procs:
+        print(proc)
+        # Get the proc data then loop over specific proc and save
+        proc_data = sig[sig['process'] == proc]
+        unique_specific_procs = np.unique(proc_data['specific_proc'])
+        print(unique_specific_procs)
+        for sproc in unique_specific_procs:
+            sproc_data = proc_data[proc_data['specific_proc'] == sproc]
+
+            scaled_data = applyInverseScaler(sproc_data, scaler, features)
+            scaled_data = copy.deepcopy(scaled_data)
+            scaled_data = ak.values_astype(scaled_data, "float32")
+
+            # Save all the branches, but not the pnn_output branches that 
+            # don't correspond to this mass point
+            branches_to_keep = []
+            for field in ak.fields(sproc_data):
+                if "pnn_output" in field:
+                    if proc in field:
+                        branches_to_keep.append(field)
+                else:
+                    branches_to_keep.append(field)
+
+            scaled_data = scaled_data[branches_to_keep]
+
+
+            # Save the data
+            for file_type in ['root', 'awkward']:
+                os.makedirs(f"{run_loc}/data/{run_name}/{file_type}", exist_ok=True)
+            
+            ak.to_parquet(scaled_data, f"{run_loc}/data/{run_name}/awkward/{proc}_{sproc}.parquet")
+            df = ak.to_dataframe(scaled_data)
+            #df.to_csv(f"{run_loc}/data/{run_name}/awkward/{proc}_{sproc}.parquet")
+
+            with uproot.recreate(f"{run_loc}/data/{run_name}/root/{proc}_{sproc}.root") as file:
+                file["Events"] = df
+
+            print("Saved!")
+
+
+def saveBackgroundSamples(evs, run_loc, scaler, features, run_name = "train"):
+    print(f"Saving signal samples for {run_name}")
+    bkg = evs[evs['class'] == 0]
+
+    # Find the unique processes, and loop over them
+    unique_procs = np.unique(bkg['process'])
+    print(unique_procs)
+    for proc in unique_procs[2:]:
+        print(proc)
+        # Get the proc data then loop over specific proc and save
+        proc_data = bkg[bkg['process'] == proc]
+
+
+        scaled_data = applyInverseScaler(proc_data, scaler, features)
+        scaled_data = copy.deepcopy(scaled_data)
+        scaled_data = ak.values_astype(scaled_data, "float32")
+
+
+        # Save the data
+        for file_type in ['root', 'awkward']:
+            os.makedirs(f"{run_loc}/data/{run_name}/{file_type}", exist_ok=True)
+        
+        ak.to_parquet(scaled_data, f"{run_loc}/data/{run_name}/awkward/{proc}_{proc}.parquet")
+        df = ak.to_dataframe(scaled_data)
+        #df.to_csv(f"{run_loc}/data/{run_name}/awkward/{proc}_{proc}.parquet")
+
+        with uproot.recreate(f"{run_loc}/data/{run_name}/root/{proc}_{proc}.root") as file:
+            file["Events"] = df
+
+        print("Saved!")
