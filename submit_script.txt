@@ -1,7 +1,7 @@
 executable = execute_main.sh
-output = runs/mainRun1.out
-error = runs/mainRun1.err
-log = runs/mainRun1.log
+output = runs/mainRun_allSignal_trainValTestSplit.out
+error = runs/mainRun_allSignal_trainValTestSplit.err
+log = runs/mainRun_allSignal_trainValTestSplit.log
 
 request_gpus = 1
 JobBatchName = train_pNN

@@ -595,11 +595,10 @@ class trainNN:
         probabilities = np.concatenate(probabilities, axis=0)
         return probabilities
 
-    def getProbsForEachMass(self, dataset, samples):
+    def getProbsForEachMass(self, dataset, samples, unique_masses):
         # Find the probs for each sample, for each mass point
         # Think this will be easier as a pandas df
         probabilities = []
-        unique_masses = copy.copy(dataset.unique_masses)
         # Loop over all masses
         for mass in unique_masses:
             print(f"Finding probabilities for mass = {mass}")

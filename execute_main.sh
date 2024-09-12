@@ -9,8 +9,8 @@ echo "[wrapper] ls-ing files"
 ls -altrh
 
 eval "$(micromamba shell hook --shell bash)"
-micromamba activate fcc-study
+micromamba activate FCC-forAMstudent
 
-cd /vols/cms/emc21/fccStudy
+cd /vols/cms/emc21/FCC/FCC-Study
 
 python main.py

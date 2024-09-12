@@ -12,6 +12,34 @@ from fcc_study.pNN.utils import convertToNumpy
 import copy, os
 
 
+def combineChunk(event_list):
+    chunk_size = 10
+    num_chunks = len(event_list) // chunk_size
+
+    if num_chunks == 0:
+        return ak.concatenate(event_list)
+
+    events = []
+    for i in range(num_chunks + 1):
+        evs = event_list[i * chunk_size:(i + 1) * chunk_size]
+        if len(evs) == 0:
+            continue
+        events.append(ak.concatenate(evs))
+    
+    return events
+
+def combineInChunks(event_list):
+    print("Inside combine in chunks")
+    combined = False
+    while not combined:
+        event_list = combineChunk(event_list)
+        if isinstance(event_list, ak.Array):
+            print("Here")
+            combined = True
+
+    return event_list
+
+
 def flattenFields(evs):
     for field in ak.fields(evs):
         if "var" in str(ak.type(evs[field])):
@@ -43,19 +71,49 @@ def getWeight(evs, xs, lumi):
 
     return weight
 
+def splitIntoTrainValTest(evs, run_loc, file_name, test_size=0.2, val_size=0.2, random_state=42):
+    # First split into train and test
+    idxs = np.arange(len(evs))
+    train_data_idxs, test_data_idxs = train_test_split(
+        idxs, test_size=test_size, random_state=random_state
+    )
 
-def getData(samples, cuts=None):
+    # Now split the train data into train and validation
+    train_data_idxs, val_data_idxs = train_test_split(
+        train_data_idxs, test_size=val_size, random_state=random_state
+    )
 
-    events = []
+    # Now save the test_data and delete it to save space
+    # Save the test data
+    test_loc = f"{run_loc}/data/test/awkward"
+    os.makedirs(test_loc, exist_ok=True)
+    test_data = evs[test_data_idxs]
+    # Save scaled test_data weights
+    test_data["weight_nominal_scaled"] = test_data["weight_nominal"] / test_size
+    ak.to_parquet(test_data, f"{test_loc}/{file_name}.parquet")
+
+    del test_data
+
+    # Save scaled train and val weights
+    train_data = evs[train_data_idxs]
+    train_data["weight_nominal_scaled"] = train_data["weight_nominal"] / ((1 - test_size) * (1 - val_size))
+    val_data = evs[val_data_idxs]
+    val_data["weight_nominal_scaled"] = val_data["weight_nominal"] / ((1 - test_size) * val_size)
+
+    return train_data, val_data
+
+def getData(samples, run_loc, cuts=None):
+
+    train, val = [], []
     # First load in the signal samples
-    for sig_point, sig_dict in samples['signal'].items():
+    for sig_point, sig_dict in tqdm(samples['signal'].items()):
         print(f"Loading signal point: {sig_point}")
         files = sig_dict["files"]
         xses = sig_dict["xs"]
 
-        for file, xs in tqdm(zip(files, xses)):
+        for file, xs in zip(files, xses):
             print(f"Loading file: {file.split('/')[-1]}")
-            with uproot.open(file, num_workers=16) as f:
+            with uproot.open(file) as f:
                 try:
                     tree = f["events"]
                 except:
@@ -65,10 +123,13 @@ def getData(samples, cuts=None):
                 evs = tree.arrays(branches_to_load, library="ak")
 
                 weight = getWeight(evs, float(xs), samples["Luminosity"])
-                evs["weight"] = ak.ones_like(evs.Zcand_m) * weight
+                evs["weight_nominal"] = ak.ones_like(evs.Zcand_m) * weight
 
                 if cuts is not None:
                     evs = cuts(evs)
+
+                if len(evs) < 50: # If this few events, no point in training on it
+                    continue
 
                 # I want to add some stuff here as well to make the data more useful
                 class_num = ak.ones_like(evs.Zcand_m)
@@ -94,17 +155,24 @@ def getData(samples, cuts=None):
                 # Convert all to float32
                 evs = ak.values_astype(evs, "float32")
 
-                events.append(evs)
+                # Now split into train and val
+                test_name = f"{process}_{specific_proc}"
+                train_data, val_data = splitIntoTrainValTest(evs, run_loc, test_name,
+                                                             test_size=samples['test_size'],
+                                                             val_size=samples['val_size'])
+
+                train.append(train_data)
+                val.append(val_data)
 
     # Now load in the background samples
-    for proc, proc_dict in samples['backgrounds'].items():
+    for proc, proc_dict in tqdm(samples['backgrounds'].items()):
         print(f"Loading background process: {proc}")
         files = proc_dict["files"]
         xses = proc_dict["xs"]
 
-        for file, xs in tqdm(zip(files, xses)):
+        for file, xs in zip(files, xses):
             print(f"Loading file: {file.split('/')[-1]}")
-            with uproot.open(file, num_workers=16) as f:
+            with uproot.open(file) as f:
                 try:
                     tree = f["events"]
                 except:
@@ -113,11 +181,16 @@ def getData(samples, cuts=None):
                 branches_to_load.remove("n_seljets")
                 evs = tree.arrays(branches_to_load, library="ak")
 
+                print(f"Number of events to start = {len(evs)}")
+
                 weight = getWeight(evs, float(xs), samples["Luminosity"])
-                evs["weight"] = ak.ones_like(evs.Zcand_m) * weight
+                evs["weight_nominal"] = ak.ones_like(evs.Zcand_m) * weight
 
                 if cuts is not None:
                     evs = cuts(evs)
+
+                if len(evs) < 50: # If this few events, no point in training on it
+                    continue
 
                 # I want to add some stuff here as well to make the data more useful
                 class_num = ak.zeros_like(evs.Zcand_m)
@@ -135,10 +208,132 @@ def getData(samples, cuts=None):
                 # Convert all to float32
                 evs = ak.values_astype(evs, "float32")
 
-                events.append(evs)
-    
-    events = ak.concatenate(events)
-    return events
+                # Now split into train and val
+                test_name = f"{proc}"
+                train_data, val_data = splitIntoTrainValTest(evs, run_loc, test_name,
+                                                                test_size=samples['test_size'],
+                                                                val_size=samples['val_size'])
+
+                train.append(train_data)
+                val.append(val_data)
+
+
+    train = combineInChunks(train)
+    val = combineInChunks(val)
+
+    return train, val
+
+
+def getDataAwkward(samples, run_loc, cuts=None):
+
+    train, val = [], []
+    # First load in the signal samples
+    for sig_point, sig_dict in tqdm(samples['signal'].items()):
+        print(f"Loading signal point: {sig_point}")
+        files = sig_dict["files"]
+        xses = sig_dict["xs"]
+
+        for file, xs in zip(files, xses):
+            print(f"Loading file: {file.split('/')[-1]}")
+            evs = ak.from_parquet(file)
+
+            weight = getWeight(evs, float(xs), samples["Luminosity"])
+            evs["weight_nominal"] = ak.ones_like(evs.Zcand_m) * weight
+
+            if cuts is not None:
+                evs = cuts(evs)
+
+            if len(evs) < 50: # If this few events, no point in training on it
+                continue
+
+            # I want to add some stuff here as well to make the data more useful
+            class_num = ak.ones_like(evs.Zcand_m)
+            # Also get the masses
+            mH = sig_dict["masses"][0]
+            mA = sig_dict["masses"][1]
+            evs["mH"] = ak.ones_like(evs.Zcand_m) * mH
+            evs["mA"] = ak.ones_like(evs.Zcand_m) * mA
+
+            # Get the BP number
+            id_num = f"mH{mH}_mA{mA}"
+            evs["id_num"] = [id_num] * len(evs.Zcand_m)
+
+            process = sig_point
+            specific_proc = file.split("_")[-1].split(".root")[0]
+
+            evs["process"] = [process] * len(evs.Zcand_m)
+            evs["specific_proc"] = [specific_proc] * len(evs.Zcand_m)
+            evs["class"] = class_num
+
+            # flatten all fields
+            evs = flattenFields(evs)
+            # Convert all to float32
+            evs = ak.values_astype(evs, "float32")
+
+            # Now split into train and val
+            test_name = f"{process}_{specific_proc}"
+            train_data, val_data = splitIntoTrainValTest(evs, run_loc, test_name,
+                                                            test_size=samples['test_size'],
+                                                            val_size=samples['val_size'])
+
+            train.append(train_data)
+            val.append(val_data)
+
+    # Now load in the background samples
+    for proc, proc_dict in tqdm(samples['backgrounds'].items()):
+        print(f"Loading background process: {proc}")
+        files = proc_dict["files"]
+        xses = proc_dict["xs"]
+        print(xses)
+
+        for file, xs in zip(files, xses):
+            print(f"Loading file: {file.split('/')[-1]}")
+            evs = ak.from_parquet(file)
+
+            print(f"Number of events to start = {len(evs)}")
+
+            print(f"For file {file}, xs = {xs}, lumi = {samples['Luminosity']}")
+
+            weight = getWeight(evs, float(xs), samples["Luminosity"])
+            print(f"For file {file}, weight = {weight}")
+            evs["weight_nominal"] = ak.ones_like(evs.Zcand_m) * weight
+
+            if cuts is not None:
+                evs = cuts(evs)
+
+            if len(evs) < 50: # If this few events, no point in training on it
+                continue
+
+            # I want to add some stuff here as well to make the data more useful
+            class_num = ak.zeros_like(evs.Zcand_m)
+
+            evs["mH"] = ak.ones_like(evs.Zcand_m) * -1
+            evs["mA"] = ak.ones_like(evs.Zcand_m) * -1
+            evs["id_num"] = ["bkgrnd"] * len(evs.Zcand_m)
+
+            evs["process"] = [proc] * len(evs.Zcand_m)
+            evs["specific_proc"] = [proc] * len(evs.Zcand_m)
+            evs["class"] = class_num
+
+            # flatten all fields
+            evs = flattenFields(evs)
+            # Convert all to float32
+            evs = ak.values_astype(evs, "float32")
+
+            # Now split into train and val
+            test_name = f"{proc}"
+            train_data, val_data = splitIntoTrainValTest(evs, run_loc, test_name,
+                                                            test_size=samples['test_size'],
+                                                            val_size=samples['val_size'])
+
+            train.append(train_data)
+            val.append(val_data)
+
+
+    train = combineInChunks(train)
+    val = combineInChunks(val)
+
+    return train, val
 
 
 def consistentTrainTestSplit(
@@ -172,6 +367,8 @@ def normaliseWeightsEqualProc(events):
     print(f"Normalising weights:")
     sig_dat = events[events["class"] == 1]
     signal_ids = np.unique(sig_dat["id_num"])
+
+    events['weight'] = copy.deepcopy(events['weight_nominal'])
 
     # Want sum of weights of each signal to equal 1, then I will reweight
     # both such that the average weight = 0.001
@@ -228,6 +425,8 @@ def normaliseWeightsEqualClass(events):
     sig_dat = events[events["class"] == 1]
     signal_ids = np.unique(sig_dat["id_num"])
 
+    events['weight'] = copy.deepcopy(events['weight_nominal'])
+
     # Want sum of weights of each signal to equal 1, then I will reweight
     # both such that the average weight = 0.001
     for id in signal_ids:
@@ -274,6 +473,8 @@ def normaliseWeights(events):
     # Start by making all signal samples to sum to 1
     sig_dat = events[events["class"] == 1]
     signal_procs = np.unique(sig_dat["process"])
+
+    events['weight'] = copy.deepcopy(events['weight_nominal'])
 
     # Want sum of weights of each signal to equal 1, then I will reweight
     # both such that the average weight = 0.001
@@ -332,6 +533,8 @@ def normaliseWeightsEqualProcGroup(events, bkg_groups):
 
     sig_dat = events[events["class"] == 1]
     signal_procs = np.unique(sig_dat["process"])
+
+    events['weight'] = copy.deepcopy(events['weight_nominal'])
 
     # Want sum of weights of each signal to equal 1, then I will reweight
     # both such that the average weight = 0.001
@@ -457,10 +660,10 @@ class CustomDataset(Dataset):
         weights = convertToNumpy(data, ["weight"])
         self.weight = np.reshape(weights, (len(weights), 1))
 
-        if not "weight_scaled" in ak.fields(data):
-            data["weight_scaled"] = data["weight"]
+        if not "weight_nominal_scaled" in ak.fields(data):
+            data["weight_nominal_scaled"] = data["weight_nominal"]
 
-        weights_scaled = convertToNumpy(data, ["weight_scaled"])
+        weights_scaled = convertToNumpy(data, ["weight_nominal_scaled"])
         self.weight_scaled = np.reshape(weights_scaled, (len(weights_scaled), 1))
 
         # Now find the unique masses
@@ -602,11 +805,11 @@ def saveBackgroundSamples(evs, run_loc, scaler, features, run_name = "train"):
         for file_type in ['root', 'awkward']:
             os.makedirs(f"{run_loc}/data/{run_name}/{file_type}", exist_ok=True)
         
-        ak.to_parquet(scaled_data, f"{run_loc}/data/{run_name}/awkward/{proc}_{proc}.parquet")
+        ak.to_parquet(scaled_data, f"{run_loc}/data/{run_name}/awkward/{proc}.parquet")
         df = ak.to_dataframe(scaled_data)
-        #df.to_csv(f"{run_loc}/data/{run_name}/awkward/{proc}_{proc}.parquet")
+        #df.to_csv(f"{run_loc}/data/{run_name}/awkward/{proc}.parquet")
 
-        with uproot.recreate(f"{run_loc}/data/{run_name}/root/{proc}_{proc}.root") as file:
+        with uproot.recreate(f"{run_loc}/data/{run_name}/root/{proc}.root") as file:
             file["Events"] = df
 
         print("Saved!")
