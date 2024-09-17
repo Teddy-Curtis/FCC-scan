@@ -455,7 +455,7 @@ class trainNN:
             batch_size=self.batch_size,
             shuffle=True,
             pin_memory=True,
-            num_workers=2,
+            num_workers=8,
         )
         # loader = self.batchDataStratified(train_data)
 
@@ -485,7 +485,7 @@ class trainNN:
             batch_size=self.batch_size,
             shuffle=True,
             pin_memory=True,
-            num_workers=2,
+            num_workers=8,
         )
         probability, labels, weights = [], [], []
 
@@ -595,7 +595,7 @@ class trainNN:
         probabilities = np.concatenate(probabilities, axis=0)
         return probabilities
 
-    def getProbsForEachMass(self, dataset, samples, unique_masses):
+    def getProbsForEachMass(self, dataset, unique_masses):
         # Find the probs for each sample, for each mass point
         # Think this will be easier as a pandas df
         probabilities = []
@@ -614,36 +614,23 @@ class trainNN:
         print(f"unique_masses = ")
         print(unique_masses)
         # Convert e.g. [80, 100, 120] to string "mH80_mA100_mHch120"
-        mass_strings = self.convertMassesToString(unique_masses, samples)
+        mass_strings = self.convertMassesToString(unique_masses)
         for m, probs in zip(mass_strings, probabilities):
             dataset.data[m] = ak.flatten(probs)
 
         return dataset.data
 
-    def convertMassesToString(self, masses, samples):
+    def convertMassesToString(self, masses):
         # This finds which BP it it is. This works by finding the nearest
         # rather than the exact because sometimes the masses are not exactly
         # the same after converting with the mass_scaler (before pNN) and
         # then back
 
-        with open("/vols/cms/emc21/fccStudy/data/bp_dict.json", "r") as f:
-            bp_dict = json.load(f)
-
         masses_strings = []
         for mass in masses:
-            ms, md = mass[0], mass[1]
+            ms, md = int(np.rint(mass[0])), int(np.rint(mass[1]))
 
-            closest_bp = None
-            closest_diff = float("inf")
-
-            for bp, info in samples['signal'].items():
-                massSum, massDiff = info["masses"][0], info["masses"][1]
-                diff = abs(ms - massSum) + abs(md - massDiff)
-                if diff < closest_diff:
-                    closest_bp = bp
-                    closest_diff = diff
-
-            masses_strings.append(f"pnn_output_{closest_bp}")
+            masses_strings.append(f"pnn_output_mH{ms}_mA{md}")
 
         print(f"Masses {masses} converted to {masses_strings}")
         return masses_strings
