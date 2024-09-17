@@ -4,14 +4,13 @@ import numpy as np
 import json
 from fcc_study.pNN.training.train import getRunLoc
 from fcc_study.pNN.training.preprocessing_datasetClasses import getDataAwkward, consistentTrainTestSplit
-from fcc_study.pNN.training.preprocessing_datasetClasses import normaliseWeights, scaleFeatures, CustomDataset, combineInChunks, applyScaler
+from fcc_study.pNN.training.preprocessing_datasetClasses import normaliseWeights, scaleFeatures, CustomDataset, combineInChunks, applyScaler, applyInverseScaler
 from fcc_study.pNN.training.train import trainNN
-import copy
+import copy, uproot, os
 import matplotlib.pyplot as plt
 import mplhep as hep
 import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
-from fcc_study.pNN.training.preprocessing_datasetClasses import saveSignalSamples, saveBackgroundSamples
 
 ######################## Define Hyperparams and Model #########################
 base_run_dir = "runs/e240_full_run"
@@ -71,9 +70,9 @@ with open(f"{run_loc}/branches.json", "w") as f:
 
 params = {
         'hyperparams' : { 
-            'epochs' : 200, 
+            'epochs' : 40, 
             'early_stop' : 20,
-            'batch_size': 500,
+            'batch_size': 2000,
             'optimizer' : 'Adam', 
             'optimizer_params' : {
                 'lr': 0.00001
@@ -105,68 +104,31 @@ with open(f"{run_loc}/params.json", "w") as f:
     json.dump(params, f, indent=4)
 
 
-######################### Preprocessing #################################
-def printEff(cut, name):
-    try: 
-        eff = ak.flatten(eff)
-    except:
-        pass
-    eff = ak.sum(cut)/ak.count(cut)
-    print(f"Efficiency for {name}: {eff}")
+# train_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/train/*.parquet")
+# train_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/train/*.parquet")
+# train_files_bkg = [file for file in train_files_bkg if "h2h2" not in file]
+# train_files = train_files_sig + train_files_bkg
+train_files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/train/*.parquet")
+train_data = []
+for file in train_files:
+    train_data.append(ak.from_parquet(file))
+train_data = combineInChunks(train_data)
 
-def applyCuts(evs):
-    zcand_pz_cut = np.abs(evs.Zcand_pz) < 70
-    jet1_e_cut = evs.jet1_e < 0
-    n_photons_cut = evs.n_photons == 0
-    met_cut = evs.MET_pt > 5
-    lep1_pt_cut = evs.lep1_pt < 80
-    lep2_pt_cut = evs.lep2_pt < 60
-    zcand_povere_cut = evs.Zcand_povere > 0.1
+# val_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/val/*.parquet")
+# val_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/val/*.parquet")
+# val_files_bkg = [file for file in val_files_bkg if "h2h2" not in file]
+# val_files = val_files_sig + val_files_bkg
+val_files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/val/*.parquet")
+val_data = []
+for file in val_files:
+    val_data.append(ak.from_parquet(file))
+val_data = combineInChunks(val_data)
 
-    # Now for each cut, get the efficiency
-    printEff(zcand_pz_cut, "Zcand_pz")
-    printEff(jet1_e_cut, "jet1_e")
-    printEff(n_photons_cut, "n_photons")
-    printEff(met_cut, "MET_pt")
-    printEff(lep1_pt_cut, "lep1_pt")
-    printEff(lep2_pt_cut, "lep2_pt")
-    printEff(zcand_povere_cut, "Zcand_povere")
-
-
-
-    mask = (
-        zcand_pz_cut
-        & jet1_e_cut
-        & n_photons_cut
-        & met_cut
-        & lep1_pt_cut
-        & lep2_pt_cut
-        & zcand_povere_cut
-    )
-
-
-    # mask = (
-    #     (np.abs(evs.Zcand_pz) < 70)
-    #     & (evs.jet1_e < 0)
-    #     & (evs.n_photons == 0)
-    #     & (evs.MET_pt > 5)
-    #     & (evs.lep1_pt < 80)
-    #     & (evs.lep2_pt < 60)
-    #     & (evs.Zcand_povere > 0.1)
-    # )
-    mask = ak.flatten(mask)
-    print(evs.Zcand_pz)
-    print(evs.weight_nominal)
-    print(evs.weight_nominal[0])
-    sum_before = ak.sum(evs.weight_nominal)
-    sum_after = ak.sum(evs[mask].weight_nominal)
-    print(
-        f"Sum before: {sum_before}, Sum after: {sum_after}, Fraction: {sum_after/sum_before}"
-    )
-    return evs[mask]
-
-
-train_data, val_data = getDataAwkward(samples, run_loc, applyCuts)
+bkg = train_data[train_data['class'] == 0]
+bkg_procs  = np.unique(list(bkg.process))
+print("Background processes: ")
+for  proc in bkg_procs:
+    print(proc)
 
 # Now normalise weights so that the signal points sum to the same weight
 # e.g. each BP sum to 1, then reweight backgrounds so that 
@@ -196,16 +158,265 @@ trainer = trainNN(params, branches, run_loc)
 
 trainer.trainModel(train_dataset, val_dataset)
 
-# Now evaluate the model on the train and val data
-unique_masses = copy.copy(train_dataset.unique_masses)
-train_data = trainer.getProbsForEachMass(train_dataset, samples, unique_masses)
-val_data = trainer.getProbsForEachMass(val_dataset, samples, unique_masses)
 
-# Now save these
-saveSignalSamples(train_data, run_loc, feat_scaler, branches, run_name = "train")
-saveSignalSamples(val_data, run_loc, feat_scaler, branches, run_name = "val")
-saveBackgroundSamples(train_data, run_loc, feat_scaler, branches, run_name = "train")
-saveBackgroundSamples(val_data, run_loc, feat_scaler, branches, run_name = "val")
+
+######################### Evaluation #################################
+def evaluateModelOnData(
+    data, branches, masses, feat_scaler, mass_scaler, trainer
+):
+    
+    # Add the weights to the test data
+    data['weight'] = copy.deepcopy(data['weight_nominal'])
+
+    # Now scale the features
+    data = applyScaler(data, feat_scaler, branches)
+    data = applyScaler(data, mass_scaler, ["mH", "mA"])
+    dataset = CustomDataset(data, branches, feat_scaler, mass_scaler)
+    #dataset.shuffleMasses()
+
+    data = trainer.getProbsForEachMass(dataset, masses)
+
+    return data
+
+def saveSamples(evs, run_loc, scaler, features, run_name = "train"):
+    print(f"Saving samples for {run_name}")
+
+    # Find the unique processes, and loop over them
+    unique_procs = np.unique(evs['process'])
+    print(unique_procs)
+    for proc in unique_procs:
+        print(proc)
+        # Get the proc data then loop over specific proc and save
+        proc_data = evs[evs['process'] == proc]
+
+
+        scaled_data = applyInverseScaler(proc_data, scaler, features)
+        scaled_data = copy.deepcopy(scaled_data)
+        scaled_data = ak.values_astype(scaled_data, "float32")
+
+
+        # Save the data
+        for file_type in ['root', 'awkward']:
+            os.makedirs(f"{run_loc}/data/{run_name}/{file_type}", exist_ok=True)
+        
+        ak.to_parquet(scaled_data, f"{run_loc}/data/{run_name}/awkward/{proc}.parquet")
+        df = ak.to_dataframe(scaled_data)
+        #df.to_csv(f"{run_loc}/data/{run_name}/awkward/{proc}.parquet")
+
+        with uproot.recreate(f"{run_loc}/data/{run_name}/root/{proc}.root") as file:
+            file["Events"] = df
+
+        print("Saved!")
+
+def evaluateAllData(run_name, all_masses):
+    # files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/{run_name}/*h2h2*.parquet")
+    # files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/{run_name}/*.parquet")
+    # files_bkg = [file for file in files_bkg if "h2h2" not in file]
+    # files = files_sig + files_bkg
+    files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/{run_name}/*.parquet")
+    data = []
+    for file in files:
+        data.append(ak.from_parquet(file))
+    data = combineInChunks(data)
+
+
+    print("all_masses: ", all_masses)
+
+    # Now do this in parts: for backgrounds can combine all then evaluate model 
+    # Then save separately, but for signal I don't want to evaluate the signal 
+    # on other signal point masses.
+    bkg_train = data[data['class'] == 0]
+    bkg_train = evaluateModelOnData(bkg_train, branches, all_masses, feat_scaler, mass_scaler, trainer)
+
+    saveSamples(bkg_train, run_loc, feat_scaler, branches, run_name = run_name)
+
+
+    # Get all the pnn_output branches
+    pnn_output_branches = [f for f in ak.fields(bkg_train) if "pnn_output" in f]
+
+
+    # Now I need to loop over all the signal points and evaluate the model on them
+    sig_train = data[data['class'] == 1]
+    sig_procs = np.unique(list(sig_train.process))
+    for sig_proc in sig_procs:
+        print(f"Processing signal process: {sig_proc}")
+        sig_data = copy.deepcopy(sig_train[sig_train['process'] == sig_proc])
+
+        sig_data['weight'] = copy.deepcopy(sig_data['weight_nominal'])
+        sig_data = applyScaler(sig_data, feat_scaler, branches)
+        sig_data = applyScaler(sig_data, mass_scaler, ["mH", "mA"])
+
+        sig_dataset = CustomDataset(sig_data, branches, feat_scaler, mass_scaler)
+
+        masses = sig_dataset.unique_masses
+
+        sig_data = trainer.getProbsForEachMass(sig_dataset, samples, masses)
+
+        # Now fill in the pnn_output branches
+        for pnn_output_branch in pnn_output_branches:
+            if pnn_output_branch not in ak.fields(sig_data):
+                sig_data[pnn_output_branch] = np.ones_like(sig_data['Zcand_m']) * -1
+
+        
+        # Now save the data
+        saveSamples(sig_data, run_loc, feat_scaler, branches, run_name = run_name)
+
+
+unique_masses = train_dataset.unique_masses
+
+evaluateAllData("train", unique_masses)
+evaluateAllData("val", unique_masses)
+evaluateAllData("test", unique_masses)
+
+
+
+# train_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/train/*.parquet") #! Remove the mH80 bit!!!
+# train_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/train/*.parquet")
+# train_files_bkg = [file for file in train_files_bkg if "h2h2" not in file]
+# train_files = train_files_sig + train_files_bkg
+# train_data = []
+# for file in train_files:
+#     train_data.append(ak.from_parquet(file))
+# train_data = combineInChunks(train_data)
+
+
+# # Now evaluate the model on the train and val data
+# unique_masses = copy.copy(train_dataset.unique_masses)
+# print("Unique masses: ", unique_masses)
+
+# # Now do this in parts: for backgrounds can combine all then evaluate model 
+# # Then save separately, but for signal I don't want to evaluate the signal 
+# # on other signal point masses.
+# bkg_train = train_data[train_data['class'] == 0]
+# bkg_train = evaluateModelOnData(bkg_train, branches, unique_masses, feat_scaler, mass_scaler, trainer)
+
+# saveSamples(bkg_train, run_loc, feat_scaler, branches, run_name = "train")
+
+# # Get all the pnn_output branches
+# pnn_output_branches = [f for f in ak.fields(bkg_train) if "pnn_output" in f]
+
+
+# # Now I need to loop over all the signal points and evaluate the model on them
+# sig_train = train_data[train_data['class'] == 1]
+# sig_procs = np.unique(list(sig_train.process))
+# for sig_proc in sig_procs:
+#     print(f"Processing signal process: {sig_proc}")
+#     sig_data = copy.deepcopy(sig_train[sig_train['process'] == sig_proc])
+
+#     sig_data['weight'] = copy.deepcopy(sig_data['weight_nominal'])
+#     sig_data = applyScaler(sig_data, feat_scaler, branches)
+#     sig_data = applyScaler(sig_data, mass_scaler, ["mH", "mA"])
+
+#     sig_dataset = CustomDataset(sig_data, branches, feat_scaler, mass_scaler)
+
+#     masses = sig_dataset.unique_masses
+
+#     sig_data = trainer.getProbsForEachMass(sig_dataset, samples, masses)
+
+#     # Now fill in the pnn_output branches
+#     for pnn_output_branch in pnn_output_branches:
+#         if pnn_output_branch not in ak.fields(sig_data):
+#             sig_data[pnn_output_branch] = np.ones_like(sig_data['Zcand_m']) * -1
+
+    
+#     # Now save the data
+#     saveSamples(sig_data, run_loc, feat_scaler, branches, run_name = "train")
+
+
+# # Now repeat for the validation and test data
+
+# val_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/val/*.parquet") #! Remove the mH80 bit!!!
+# val_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/val/*.parquet")
+# val_files_bkg = [file for file in val_files_bkg if "h2h2" not in file]
+# val_files = val_files_sig + val_files_bkg
+# val_data = []
+# for file in val_files:
+#     val_data.append(ak.from_parquet(file))
+# val_data = combineInChunks(val_data)
+
+# bkg_val = val_data[val_data['class'] == 0]
+# bkg_val = evaluateModelOnData(bkg_val, branches, unique_masses, feat_scaler, mass_scaler, trainer)
+
+# saveSamples(bkg_val, run_loc, feat_scaler, branches, run_name = "val")
+
+# # Now I need to loop over all the signal points and evaluate the model on them
+# sig_val = val_data[val_data['class'] == 1]
+# sig_procs = np.unique(list(sig_val.process))
+# for sig_proc in sig_procs:
+#     print(f"Processing signal process: {sig_proc}")
+#     sig_data = copy.deepcopy(sig_val[sig_val['process'] == sig_proc])
+
+#     sig_data['weight'] = copy.deepcopy(sig_data['weight_nominal'])
+#     sig_data = applyScaler(sig_data, feat_scaler, branches)
+#     sig_data = applyScaler(sig_data, mass_scaler, ["mH", "mA"])
+
+#     sig_dataset = CustomDataset(sig_data, branches, feat_scaler, mass_scaler)
+
+#     masses = sig_dataset.unique_masses
+
+#     sig_data = trainer.getProbsForEachMass(sig_dataset, samples, masses)
+
+#     # Now fill in the pnn_output branches
+#     for pnn_output_branch in pnn_output_branches:
+#         if pnn_output_branch not in ak.fields(sig_data):
+#             sig_data[pnn_output_branch] = np.ones_like(sig_data['Zcand_m']) * -1
+
+    
+#     # Now save the data
+#     saveSamples(sig_data, run_loc, feat_scaler, branches, run_name = "val")
+
+
+# # Now do the same for the test data
+# test_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/test/*.parquet") #! Remove the mH80 bit!!!
+# test_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/test/*.parquet")
+# test_files_bkg = [file for file in test_files_bkg if "h2h2" not in file]
+# test_files = test_files_sig + test_files_bkg
+# test_data = []
+# for file in test_files:
+#     test_data.append(ak.from_parquet(file))
+# test_data = combineInChunks(test_data)
+
+# bkg_test = test_data[test_data['class'] == 0]
+# bkg_test = evaluateModelOnData(bkg_test, branches, unique_masses, feat_scaler, mass_scaler, trainer)
+
+# saveSamples(bkg_test, run_loc, feat_scaler, branches, run_name = "test")
+
+# # Now I need to loop over all the signal points and etestuate the model on them
+# sig_test = test_data[test_data['class'] == 1]
+# sig_procs = np.unique(list(sig_test.process))
+# for sig_proc in sig_procs:
+#     print(f"Processing signal process: {sig_proc}")
+#     sig_data = copy.deepcopy(sig_test[sig_test['process'] == sig_proc])
+
+#     sig_data['weight'] = copy.deepcopy(sig_data['weight_nominal'])
+#     sig_data = applyScaler(sig_data, feat_scaler, branches)
+#     sig_data = applyScaler(sig_data, mass_scaler, ["mH", "mA"])
+
+#     sig_dataset = CustomDataset(sig_data, branches, feat_scaler, mass_scaler)
+
+#     masses = sig_dataset.unique_masses
+
+#     sig_data = trainer.getProbsForEachMass(sig_dataset, samples, masses)
+
+#     # Now fill in the pnn_output branches
+#     for pnn_output_branch in pnn_output_branches:
+#         if pnn_output_branch not in ak.fields(sig_data):
+#             sig_data[pnn_output_branch] = np.ones_like(sig_data['Zcand_m']) * -1
+
+    
+#     # Now save the data
+#     saveSamples(sig_data, run_loc, feat_scaler, branches, run_name = "test")
+
+
+
+# train_data = trainer.getProbsForEachMass(train_dataset, samples, unique_masses)
+# val_data = trainer.getProbsForEachMass(val_dataset, samples, unique_masses)
+
+# # Now save these
+# saveSignalSamples(train_data, run_loc, feat_scaler, branches, run_name = "train")
+# saveSignalSamples(val_data, run_loc, feat_scaler, branches, run_name = "val")
+# saveBackgroundSamples(train_data, run_loc, feat_scaler, branches, run_name = "train")
+# saveBackgroundSamples(val_data, run_loc, feat_scaler, branches, run_name = "val")
 # os.makedirs(f"{run_loc}/data/train", exist_ok=True)
 # os.makedirs(f"{run_loc}/data/val", exist_ok=True)
 # ak.to_parquet(copy.deepcopy(train_data), f"{run_loc}/train_data.parquet")
@@ -213,29 +424,29 @@ saveBackgroundSamples(val_data, run_loc, feat_scaler, branches, run_name = "val"
 
 # Now delete the train and val data, read in the test data and evaluate the 
 # model on that
-del train_data
-del val_data
+# del train_data
+# del val_data
 
-test_files = glob.glob(f"{run_loc}/data/test/awkward/*.parquet")
-test_data = []
-for file in test_files:
-    test_data.append(ak.from_parquet(file))
-test_data = combineInChunks(test_data)
+# test_files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2/awkward_files/test/*.parquet")
+# test_data = []
+# for file in test_files:
+#     test_data.append(ak.from_parquet(file))
+# test_data = combineInChunks(test_data)
 
-# Add the weights to the test data
-test_data['weight'] = copy.deepcopy(test_data['weight_nominal'])
+# # Add the weights to the test data
+# test_data['weight'] = copy.deepcopy(test_data['weight_nominal'])
 
-# Now scale the features
-test_data = applyScaler(test_data, feat_scaler, branches)
-test_data = applyScaler(test_data, mass_scaler, ["mH", "mA"])
-test_dataset = CustomDataset(test_data, branches, feat_scaler, mass_scaler)
-test_dataset.shuffleMasses()
+# # Now scale the features
+# test_data = applyScaler(test_data, feat_scaler, branches)
+# test_data = applyScaler(test_data, mass_scaler, ["mH", "mA"])
+# test_dataset = CustomDataset(test_data, branches, feat_scaler, mass_scaler)
+# test_dataset.shuffleMasses()
 
-test_data = trainer.getProbsForEachMass(test_dataset, samples, unique_masses)
+# test_data = trainer.getProbsForEachMass(test_dataset, samples, unique_masses)
 
-# Now save the test data
-saveSignalSamples(test_data, run_loc, feat_scaler, branches, run_name = "test")
-saveBackgroundSamples(test_data, run_loc, feat_scaler, branches, run_name = "test")
+# # Now save the test data
+# saveSignalSamples(test_data, run_loc, feat_scaler, branches, run_name = "test")
+# saveBackgroundSamples(test_data, run_loc, feat_scaler, branches, run_name = "test")
 
 print("Done!")
 
