@@ -273,6 +273,6 @@ if __name__ == "__main__":
 
 
     # Get the feature and mass scalers
-    #evaluateAllData("train", unique_masses, run_loc, feat_scaler, mass_scaler, evaluator)
-    #evaluateAllData("val", unique_masses, run_loc, feat_scaler, mass_scaler, evaluator)
+    evaluateAllData("train", unique_masses, run_loc, feat_scaler, mass_scaler, evaluator)
+    evaluateAllData("val", unique_masses, run_loc, feat_scaler, mass_scaler, evaluator)
     evaluateAllData("test", unique_masses, run_loc, feat_scaler, mass_scaler, evaluator)

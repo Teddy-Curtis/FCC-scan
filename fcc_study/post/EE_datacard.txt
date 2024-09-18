@@ -1,0 +1,17 @@
+Combination of EE=EE_datacard.txt
+imax 1 number of bins
+jmax 9 number of processes minus 1
+kmax 0 number of nuisance parameters
+----------------------------------------------------------------------------------------------------------------------------------
+shapes *         EE        mH$MASS_mA$MA_electrons.root $PROCESS
+shapes data_obs  EE        mH$MASS_mA$MA_electrons.root data_obs
+----------------------------------------------------------------------------------------------------------------------------------
+bin          EE   
+observation  -1   
+----------------------------------------------------------------------------------------------------------------------------------
+bin          EE             EE             EE             EE             EE             EE             EE             EE             EE              EE           
+process      idm            ZZ             tautau         WW             mumuH          nunuH          ee_Mee_30_150  eeH            tautauH             mumu         
+process      0              1              2              3              4              5              6              7              8               10           
+rate         -1             -1             -1             -1             -1             -1             -1             -1             -1              -1           
+----------------------------------------------------------------------------------------------------------------------------------
+EE autoMCStats 0 0 1
