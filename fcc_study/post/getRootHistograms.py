@@ -8,6 +8,8 @@ from tqdm import tqdm
 import mplhep as hep
 import uproot, os
 import boost_histogram as bh
+import numpy as np
+import copy
 
 
 
@@ -22,15 +24,32 @@ def parse_arguments():
         type=str,
         help="Training directory where the model is.",
     )
+    
+    parser.add_argument(
+        "--ecom",
+        required=True,
+        type=int,
+        help="Center of mass energy.",
+    )
 
     return parser.parse_args()
 
+parser = parse_arguments()
+run_loc = parser.run_loc
+ecom = parser.ecom
 
-run_loc = parse_arguments().run_loc
+def rescaleWeightsToCorrectLumi(events, ecom):
+    if ecom == 240:
+        scale = 10800000 / 5000000
+    elif ecom == 365:
+        scale = 3000000 / 5000000
+    else:
+        raise ValueError("Invalid ecom")
 
+    events['weight_nominal'] = events['weight_nominal'] * scale
+    events['weight_nominal_scaled'] = events['weight_nominal_scaled'] * scale
 
-import numpy as np
-import copy
+    return events
 
 
 def getWeight(mH, mA, process, Ecom, lumi):
@@ -161,9 +180,16 @@ for sig_proc in tqdm(sig_procs):
     bkg = test[test['class'] == 0]
 
     # Get the new sig weights
-    print(f"Mean weight before = {np.mean(sig['weight_nominal'])}")
-    sig = getSignalWeights(sig, 240, 500_000) #! Will need to change the Ecom!
-    print(f"Mean weight after = {np.mean(sig['weight_nominal'])}")
+
+    if ecom == 240:
+        print(f"Mean weight before getSignalWeights = {np.mean(sig['weight_nominal_scaled'])}")
+        sig = getSignalWeights(sig, 240, 500_000) #! Will need to change the Ecom!
+        print(f"Mean weight after getSignalWeights = {np.mean(sig['weight_nominal_scaled'])}")
+
+
+    print(f"Mean weight before lumi rescaling = {np.mean(sig['weight_nominal_scaled'])}")
+    sig = rescaleWeightsToCorrectLumi(sig, ecom)
+    print(f"Mean weight after lumi rescaling = {np.mean(sig['weight_nominal_scaled'])}")
 
     # Now loop over electrons and muons
     for PROCESS in ['electrons', 'muons']:
