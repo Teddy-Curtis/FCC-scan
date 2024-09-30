@@ -9,7 +9,7 @@ echo "[wrapper] ls-ing files"
 ls -altrh
 
 eval "$(micromamba shell hook --shell bash)"
-micromamba activate FCC-forAMstudent
+micromamba activate FCC-forAMstudent2
 
 cd /vols/cms/emc21/FCC/FCC-Study
 
