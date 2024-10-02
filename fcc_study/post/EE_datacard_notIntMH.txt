@@ -3,7 +3,7 @@ imax 1 number of bins
 jmax 6 number of processes minus 1
 kmax 0 number of nuisance parameters
 ----------------------------------------------------------------------------------------------------------------------------------
-shapes idm         EE      mH$MASS_mA$MA_signal_Electron_hists.root $PROCESS
+shapes idm         EE      mH$MASS.0_mA$MA_signal_Electron_hists.root $PROCESS
 shapes *  EE      backgrounds.root $PROCESS_Electron
 ----------------------------------------------------------------------------------------------------------------------------------
 bin          EE   

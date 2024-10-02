@@ -1,17 +1,17 @@
-Combination of EE=EE_datacard.txt
+Combination of MuMu=MuMu_datacard.txt
 imax 1 number of bins
 jmax 6 number of processes minus 1
 kmax 0 number of nuisance parameters
 ----------------------------------------------------------------------------------------------------------------------------------
-shapes idm         EE      mH$MASS_mA$MA_signal_Electron_hists.root $PROCESS
-shapes *  EE      backgrounds.root $PROCESS_Electron
+shapes idm         MuMu      mH$MASS.0_mA$MA_signal_Muon_hists.root $PROCESS
+shapes *  MuMu      backgrounds.root $PROCESS_Muon
 ----------------------------------------------------------------------------------------------------------------------------------
-bin          EE   
+bin          MuMu 
 observation  -1   
 ----------------------------------------------------------------------------------------------------------------------------------
-bin          EE           EE           EE           EE             EE            EE         EE 
+bin          MuMu           MuMu           MuMu           MuMu             MuMu            MuMu         MuMu 
 process      idm            ZZ             tautau         WW              ee            mumu           Higgs_X
 process      0              1              2              3                   4            5           6
-rate         -1             -1             -1             -1                 -1           -1           -1 
+rate         -1             -1             -1             -1                 -1           -1           -1
 ----------------------------------------------------------------------------------------------------------------------------------
-EE autoMCStats 0 0 1
+MuMu autoMCStats 0 0 1

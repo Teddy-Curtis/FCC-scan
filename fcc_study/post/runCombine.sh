@@ -16,6 +16,8 @@ cmsenv
 
 cd ${combine_direc}
 
+combineCards.py MuMu=MuMu_datacard.txt EE=EE_datacard.txt  > combined_datacard.txt
+
 combine -M AsymptoticLimits MuMu_datacard.txt -m ${mH} --keyword-value MA=${mA} -n MuMu
 python3 /vols/cms/emc21/FCC/FCC-Study/fcc_study/post/getLimitFromFile.py --combine_direc ${combine_direc} --extra_name MuMu
 
