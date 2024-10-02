@@ -676,6 +676,9 @@ class CustomDataset(Dataset):
         self.feat_scaler = feat_scaler
         self.mass_scaler = mass_scaler
 
+        self.num_labels = len(self.labels)
+        print(f"Num_labels = {self.num_labels}")
+
     def shuffleMasses(self):
         # Want to find unique groupings of the mH,mA,mHch
         # Pick masses randomly from unique_masses
@@ -695,11 +698,13 @@ class CustomDataset(Dataset):
         # Set all backgrounds to the same mass
         # e.g. masses_to_set = [80, 100, 160]
         # Expand out to same size of data array
-        specific_masses = np.array([masses_to_set] * len(self.labels))
+        #print("Making the specific mass")
+        #specific_masses = np.array([masses_to_set] * self.num_labels)
+        #print("Made the specific mass")
 
         # Now only apply the background samples
         sig_mask = self.labels == 1
-        new_masses = np.where(sig_mask, self.masses, specific_masses)
+        new_masses = np.where(sig_mask, self.masses, [masses_to_set])
 
         self.masses = new_masses
 
