@@ -155,7 +155,10 @@ im = ax.imshow(masked_array, cmap = cmap, aspect='auto', extent=extent, origin='
 legend_elements = []
 legend_names = []
 
-line = ax.plot([70, 120], [100, 0], color='black', linestyle='--', label = f'$M_H$ + $M_A$ = {ecom} GeV')
+if ecom == 240:
+    line = ax.plot([70, 120], [100, 0], color='black', linestyle='--', label = f'$M_H$ + $M_A$ = {ecom} GeV')
+else:
+    line = ax.plot([70, 365/2], [225, 0], color='black', linestyle='--', label = f'$M_H$ + $M_A$ = {ecom} GeV')
 
 
 con_filled = plt.contourf(plot_grid, np.array([0, 1]), colors=['white', 'white'],
@@ -169,10 +172,10 @@ handles_con, labels = con.legend_elements()
 ###########################################################################
 ######################### Plot the other scenarios#########################
 ###########################################################################
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_2/run1/combine_SecondNoMllBelow30ForElec_noInterp/all_signifs.json", "r") as f:
+with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e365NewestData/scenario_2/run1/combine_bigBins/all_signifs.json", "r") as f:
     all_sigs_scen2 = json.load(f)
 
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_3/run1/combine_SecondNoMllBelow30ForElec_noInterp/all_signifs.json", "r") as f:
+with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e365NewestData/scenario_3/run1/combine_bigBins/all_signifs.json", "r") as f:
     all_sigs_scen3 = json.load(f)
 
 grid_central_scen2 = getSigs(all_sigs_scen2, all_ms)[0]

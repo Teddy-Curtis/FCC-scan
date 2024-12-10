@@ -133,6 +133,8 @@ ind = np.lexsort((all_ms[:,1],all_ms[:,0]))
 all_ms = all_ms[ind]
 
 plot_grid, grid_x, grid_y, mHs, diffs = getGrid(all_limits, all_ms, '0.5')
+plot_grid_up, _, _, _, _ = getGrid(all_limits, all_ms, '0.84')
+plot_grid_down, _, _, _, _ = getGrid(all_limits, all_ms, '0.16')
 
 extent = (np.min(mHs)-1, np.max(mHs) + 5, 0, np.max(diffs))
 
@@ -171,28 +173,66 @@ handles_con, labels = con.legend_elements()
 ###########################################################################
 ######################### Plot the other scenarios#########################
 ###########################################################################
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e365NewestData/scenario_2/run1/combine_bigBins/all_limits.json", "r") as f:
+with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_2/run1/combine_SecondNoMllBelow30ForElec_noInterp/all_limits.json", "r") as f:
     all_limits_scen2 = json.load(f)
 
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e365NewestData/scenario_3/run1/combine_bigBins/all_limits.json", "r") as f:
+with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_3/run1/combine_SecondNoMllBelow30ForElec_noInterp/all_limits.json", "r") as f:
     all_limits_scen3 = json.load(f)
 
 grid_central_scen2 = getGrid(all_limits_scen2, all_ms, '0.5')[0]
+grid_up_scen2 = getGrid(all_limits_scen2, all_ms, '0.84')[0]
+grid_down_scen2 = getGrid(all_limits_scen2, all_ms, '0.16')[0]
+
 grid_central_scen3 = getGrid(all_limits_scen3, all_ms, '0.5')[0]
+grid_up_scen3 = getGrid(all_limits_scen3, all_ms, '0.84')[0]
+grid_down_scen3 = getGrid(all_limits_scen3, all_ms, '0.16')[0]
 
 con_scen2 = ax.contour(grid_central_scen2, np.array([1]) , colors=['red'], linewidths=[1.5],
                     extent=extent, 
-                    origin='lower', linestyles='dashed')
+                    origin='lower')
 handles_conscen2, labels_conscen2 = con_scen2.legend_elements()
 
 con_scen3 = ax.contour(grid_central_scen3, np.array([1]) , colors=['blue'], linewidths=[1.5],
                     extent=extent, 
-                    origin='lower', linestyles='dashed')
+                    origin='lower')
 handles_conscen3, labels_conscen3 = con_scen3.legend_elements()
 
 legend_elements += handles_con + handles_conscen2 + handles_conscen3 + handles_con_filled  + line
 legend_names += ["Scenario-1 95\% CL", "Scenario-2 95\% CL", "Scenario-3 95\% CL", "Excluded", '$M_H$ + $M_A$ = $\sqrt{s}$']
 
+
+# Now plot all the sigma bands
+con_up = plt.contour(plot_grid_up, np.array([1]) , colors=['lime'],
+                    linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
+handles_con_up, labels_con_up = con_up.legend_elements()
+con_down = plt.contour(plot_grid_down, np.array([1]) , colors=['lime'],
+                    linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
+handles_con_down, labels_con_down = con_down.legend_elements()
+
+legend_elements += handles_con_up 
+legend_names += ["Scen. 1 $\pm 1 \sigma$"]
+
+# con_up_scen2 = plt.contour(grid_up_scen2, np.array([1]) , colors=['orange'],
+#                     linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
+# handles_con_up_scen2, labels_con_up_scen2 = con_up_scen2.legend_elements()
+
+# con_down_scen2 = plt.contour(grid_down_scen2, np.array([1]) , colors=['orange'],
+#                     linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
+# handles_con_down_scen2, labels_con_down_scen2 = con_down_scen2.legend_elements()
+
+# legend_elements += handles_con_up_scen2
+# legend_names += ["Scen. 2 $\pm 1 \sigma$"]
+
+# con_up_scen3 = plt.contour(grid_up_scen3, np.array([1]) , colors=['pink'],
+#                     linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
+# handles_con_up_scen3, labels_con_up_scen3 = con_up_scen3.legend_elements()
+
+# con_down_scen3 = plt.contour(grid_down_scen3, np.array([1]) , colors=['pink'],
+#                     linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
+# handles_con_down_scen3, labels_con_down_scen3 = con_down_scen3.legend_elements()
+
+# legend_elements += handles_con_up_scen3
+# legend_names += ["Scen. 3 $\pm 1 \sigma$"]
 
 
 if not skip_excluded:
@@ -230,7 +270,7 @@ eq1 = (r"\begin{eqnarray*}"
         r"\end{array}"
        r"\end{eqnarray*}")
 
-plt.text(0.445, 0.77, eq1, fontsize="21",
+plt.text(0.445, 0.7, eq1, fontsize="21",
              transform=ax.transAxes)
 
 
@@ -239,7 +279,7 @@ eq1 = ("Scenario 1:\n"
         r"$M_{H^\pm} = M_A$" + "\n"
         r"$\lambda_{345} = 1e\textit{-}6$")
 
-plt.text(0.8, 0.6, eq1, fontsize="21",
+plt.text(0.8, 0.5, eq1, fontsize="21",
              transform=ax.transAxes)
 
 
@@ -247,14 +287,14 @@ eq1 = ("Scenario 2:\n"
         r"$M_{H^\pm} = M_A$" + "\n"
         r"$\lambda_{345} = \lambda_{max}$")
 
-plt.text(0.8, 0.47, eq1, fontsize="21",
+plt.text(0.8, 0.37, eq1, fontsize="21",
              transform=ax.transAxes)
 
 eq1 = ("Scenario 3:\n"
         r"$M_{H^\pm} = M_{H^\pm}^{max}$" + "\n"
         r"$\lambda_{345} = \lambda_{max}$")
 
-plt.text(0.8, 0.34, eq1, fontsize="21",
+plt.text(0.8, 0.24, eq1, fontsize="21",
              transform=ax.transAxes)
 
 if save_name is not None:
