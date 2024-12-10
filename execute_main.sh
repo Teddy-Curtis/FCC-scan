@@ -13,4 +13,4 @@ micromamba activate FCC-forAMstudent2
 
 cd /vols/cms/emc21/FCC/FCC-Study
 
-python main.py
+python main_e365.py
