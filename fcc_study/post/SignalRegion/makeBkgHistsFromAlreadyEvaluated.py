@@ -65,8 +65,7 @@ output_direc = parser.output_direc
 
 # Load in the mass scan
 mass_pairs = np.loadtxt(f"{output_direc}/mass_scan.txt")
-
-bins = np.linspace(0.9, 1, 25)
+bins = np.linspace(0.9, 1, 16)
 
 
 bkg = []
@@ -77,6 +76,15 @@ for file in tqdm(files):
 
 bkg = combineInChunks(bkg)
 
+#! Remove ee events with Mll < 30
+bkg_elec = bkg[bkg.n_electrons == 2]
+bkg_mu = bkg[bkg.n_muons == 2]
+bkg_elec_Mll_cut = bkg_elec.Zcand_m > 30
+eff = np.sum(bkg_elec_Mll_cut) / len(bkg_elec_Mll_cut)
+print(f"Efficiency of Mll cut: {eff}")
+bkg_elec = bkg_elec[bkg_elec_Mll_cut]
+
+bkg = ak.concatenate([bkg_elec, bkg_mu], axis=0)
 
 
 bkg_proc_groups = {
@@ -99,7 +107,7 @@ def getGroup(proc):
 
 def makeEmptyHistogramDict():
     # This just makes a histogram with empty bins for each process
-    bins = np.linspace(0.9, 1, 25)
+    bins = np.linspace(0.9, 1, 16)
     hist = np.zeros(len(bins)-1)
 
     return {proc : [copy.deepcopy(hist), copy.deepcopy(hist)] for proc in bkg_proc_groups.keys()}
