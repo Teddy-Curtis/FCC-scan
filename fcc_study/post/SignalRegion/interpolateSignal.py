@@ -288,7 +288,7 @@ def findBestEpsilon(df, target, radial_func, eps_range, rescaleAxis):
     print(f"Best epsilon: {best_eps}")
     return best_eps
 
-def init_splines(signal, weights, bins, epsilon=None, spline_type="cubic", fine_search=False):
+def init_splines(signal, weights, bins, epsilon=None, spline_type="cubic", fine_search=False, channel="Electron"):
     print("Initiating Splines")
     masses = np.unique(ak.to_numpy(signal[['mH', 'mA']])).view('<f4').reshape(-1, 2)
     mHs, mAs = masses[:,0], masses[:,1]
@@ -304,6 +304,9 @@ def init_splines(signal, weights, bins, epsilon=None, spline_type="cubic", fine_
     pNNoutputs = []
 
     for mH, mA in zip(mHs, mAs):
+        if (channel == "Electron") and (mA - mH <= 30):
+            continue
+
         # get signal for that mass 
         cut = (signal['mH'] == mH) & (signal['mA'] == mA)
         signal_mass = signal[cut]
@@ -411,10 +414,10 @@ def doInterpolation(train_direc, output_direc):
     # Load in the mass scan
     mass_pairs = np.loadtxt(f"{output_direc}/mass_scan.txt")
 
-    bins = np.linspace(0.9, 1, 25)
+    bins = np.linspace(0.9, 1, 16)
 
     # Load the signal and weights
-    branches = ['n_muons', 'n_electrons', 'pnn_output_*', 'weight_nominal_scaled', 'mH', 'mA']
+    branches = ['n_muons', 'n_electrons', 'pnn_output_*', 'weight_nominal_scaled', 'mH', 'mA', 'Zcand_m']
 
     signal = []
     #test_files = glob.glob(f"data/test/awkward/*.parquet")
@@ -426,6 +429,16 @@ def doInterpolation(train_direc, output_direc):
         signal.append(ak.from_parquet(file, columns=branches))
 
     signal = combineInChunks(signal)
+
+    #! Remove ee events with Mll < 30
+    sig_elec = signal[signal.n_electrons == 2]
+    sig_mu = signal[signal.n_muons == 2]
+    sig_elec_Mll_cut = sig_elec.Zcand_m > 30
+    eff = np.sum(sig_elec_Mll_cut) / len(sig_elec_Mll_cut)
+    print(f"Efficiency of Mll cut: {eff}")
+    sig_elec = sig_elec[sig_elec_Mll_cut]
+
+    signal = ak.concatenate([sig_elec, sig_mu], axis=0)
 
     # Change the mass to the unscaled mass
     masses = ak.to_numpy(signal[['mH', 'mA']]).view('<f4').reshape(-1, 2)
@@ -442,13 +455,15 @@ def doInterpolation(train_direc, output_direc):
 
         weights_array = events_proc.weight_nominal_scaled
         # initiate the splines
-        spline, best_eps = init_splines(events_proc, weights = weights_array, bins = bins, fine_search = True)
+        spline, best_eps = init_splines(events_proc, weights = weights_array, bins = bins, fine_search = True, channel = process)
 
         
         # Now save straight to root files
         #with uproot.recreate(f"{output_direc}/combine/{year}/OF_histograms/{mass}_OF_CR_{year}_hists.root") as f:
 
         for mH, mA in tqdm(mass_pairs):
+            if (process == "Electron") and (mA - mH <= 34.99):
+                continue
             interp_signal = interpolateSignal(spline, mH, mA - mH, bins = bins)
 
             if (mH == 80) & (mA == 150):
