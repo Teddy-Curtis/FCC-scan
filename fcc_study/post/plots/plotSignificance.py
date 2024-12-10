@@ -156,7 +156,7 @@ legend_names += ["5$\sigma$ Discovery", "Discoverable", '$M_H$ + $M_A$ = $\sqrt{
 if not skip_excluded:
     x = np.arange(50, 71, 1)
     y1 = (-5 / 4) * x + 117.5
-    y2 = 150 * np.ones_like(x)
+    y2 = 400 * np.ones_like(x)
     excl_dm = plt.fill_between(x, y1, y2, color='blue', alpha=0.2, label = 'Excluded by DM Observations')
     #handles_excl_dm, labels_excl_dm = excl_dm.legend_elements()
 
