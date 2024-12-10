@@ -468,6 +468,37 @@ def normaliseWeightsEqualClass(events):
     return events
 
 
+def normaliseWeightsFast(events):
+    # Normalise so the signal process sum to the same weight
+    # Start by making all signal samples to sum to 1
+    events['weight'] = copy.deepcopy(events['normed_weight'])
+
+    # now reweight so that the average weight of signal = 0.001
+    mean_sig = np.mean(events[events["class"] == 1]["weight"])
+    ratio = 0.001 / mean_sig
+    events["weight"] = events["weight"] * ratio
+
+    # Now get the sum of signal and reweight background to that
+    sum_sig = np.sum(events[events["class"] == 1]["weight"])
+    sum_bkg = np.sum(events[events["class"] == 0]["weight"])
+    events["weight"] = ak.where(
+        events["class"] == 0,
+        events["weight"] * (sum_sig / sum_bkg),
+        events["weight"],
+    )
+
+    # Now check that the sum of signal and background are the same
+    sig = events[events["class"] == 1]
+    bkg = events[events["class"] == 0]
+    sum_sig = np.floor(np.sum(sig['weight']))
+    sum_bkg = np.floor(np.sum(bkg['weight']))
+    print(f"Sum sig = {sum_sig}, sum bkg = {sum_bkg}")
+
+    if abs(sum_sig - sum_bkg) > 2:
+        print("Sum sig does not equal sum background!")
+
+    return events
+
 def normaliseWeights(events):
     # Normalise so the signal process sum to the same weight
     # Start by making all signal samples to sum to 1
@@ -480,9 +511,9 @@ def normaliseWeights(events):
     # both such that the average weight = 0.001
     for proc in signal_procs:
         print(proc)
-        proc_data = events[events["process"] == proc]
-        sum_weight = np.sum(proc_data["weight"])
-
+        proc_data = sig_dat[sig_dat["process"] == proc]
+        sum_weight = np.sum(proc_data["weight_nominal"])
+        print("Re weighting:")
         events["weight"] = ak.where(
             events["process"] == proc,
             events["weight"] / sum_weight,
