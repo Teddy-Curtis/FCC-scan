@@ -1,7 +1,7 @@
 import numpy as np
 import copy
 import argparse
-import os
+import os, sys
 import subprocess
 
 def parse_arguments():
@@ -61,8 +61,6 @@ def applyReplacements(file_string, replacements):
     return file_string
 
 
-
-
 if parser.runCombine:
     os.makedirs(f"{output_direc}/batch/runCombine/exec_files", exist_ok=True)
     # And for the log files
@@ -79,6 +77,7 @@ if parser.runCombine:
         #     os.system(f"cp {datacard} {output_direc}/combine/mH{mH}_mA{mA}/.")
 
         if not mH % 5:
+            print(f"Using the notIntMH datacards for mH={mH}, mA={mA}")
             datacard_files = ['/vols/cms/emc21/FCC/FCC-Study/fcc_study/post/combine/EE_datacard_notIntMH.txt',
                             '/vols/cms/emc21/FCC/FCC-Study/fcc_study/post/combine/MuMu_datacard_notIntMH.txt']
         else:
@@ -114,7 +113,6 @@ if parser.runCombine:
         with open(sub_file, "w") as f:
             f.write(file)
 
-        
         # Now submit
         cmd = f"condor_submit {sub_file}"
         status, out = subprocess.getstatusoutput(cmd)
