@@ -13,20 +13,20 @@ import torch.multiprocessing
 torch.multiprocessing.set_sharing_strategy('file_system')
 
 ######################## Define Hyperparams and Model #########################
-base_run_dir = "runs/e365_full_run_fixed"
+base_run_dir = "runs/e365_full_run_fixedLumis"
 run_loc = getRunLoc(base_run_dir)
 
 
 # Open up the signal and background sample information
-with open(f"Data/stage2_all/backgrounds.json", "r") as f:
+with open(f"Data/stage2_final/backgrounds.json", "r") as f:
     backgrounds = json.load(f)
-with open(f"Data/stage2_all/signals.json", "r") as f:
+with open(f"Data/stage2_final/signals.json", "r") as f:
     signals = json.load(f)
 
 samples = {
     "backgrounds" : backgrounds,
     "signal" : signals,
-    "Luminosity" : 5000000,
+    "Luminosity" : 3_000_000,
     "test_size" : 0.3, # e.g. 0.2 means 20% of data used for test set
     "val_size" : 0.2 # e.g. 0.2 means 20% of data used for validation set
     }
@@ -70,7 +70,7 @@ with open(f"{run_loc}/branches.json", "w") as f:
 
 params = {
         'hyperparams' : { 
-            'epochs' : 40,                           #! Change 
+            'epochs' : 15, 
             'early_stop' : 20,
             'batch_size': 2000,
             'optimizer' : 'Adam', 
@@ -104,21 +104,21 @@ with open(f"{run_loc}/params.json", "w") as f:
     json.dump(params, f, indent=4)
 
 
-# train_files_sig = sorted(glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/train/*h2h2ll.parquet"))
-# train_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/train/*.parquet")
+# train_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/train/*.parquet")
+# train_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/train/*.parquet")
 # train_files_bkg = [file for file in train_files_bkg if "h2h2" not in file]
 # train_files = train_files_sig + train_files_bkg
-train_files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/train/*.parquet")
+train_files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/train/*.parquet")
 train_data = []
 for file in train_files:
     train_data.append(ak.from_parquet(file))
 train_data = combineInChunks(train_data)
 
-# val_files_sig = sorted(glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/val/*h2h2ll.parquet"))
-# val_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/val/*.parquet")
+# val_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/val/*.parquet")
+# val_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/val/*.parquet")
 # val_files_bkg = [file for file in val_files_bkg if "h2h2" not in file]
 # val_files = val_files_sig + val_files_bkg
-val_files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/val/*.parquet")
+val_files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/val/*.parquet")
 val_data = []
 for file in val_files:
     val_data.append(ak.from_parquet(file))
@@ -130,10 +130,14 @@ print("Background processes: ")
 for  proc in bkg_procs:
     print(proc)
 
-# Replace any nans with 0
-for br in branches:
-    train_data[br] = ak.nan_to_num(train_data[br], 0)
-    val_data[br] = ak.nan_to_num(val_data[br], 0)
+
+def replaceNaNsWith0(data):
+    for branch in branches:
+        data[branch] = ak.nan_to_num(data[branch], nan=0)
+    return data
+
+train_data = replaceNaNsWith0(train_data)
+val_data = replaceNaNsWith0(val_data)
 
 # Now normalise weights so that the signal points sum to the same weight
 # e.g. each BP sum to 1, then reweight backgrounds so that 
@@ -214,19 +218,17 @@ def saveSamples(evs, run_loc, scaler, features, run_name = "train"):
         print("Saved!")
 
 def evaluateAllData(run_name, all_masses):
-    # files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/{run_name}/*h2h2*.parquet")
-    # files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/{run_name}/*.parquet")
+    # files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/{run_name}/*h2h2*.parquet")
+    # files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/{run_name}/*.parquet")
     # files_bkg = [file for file in files_bkg if "h2h2" not in file]
     # files = files_sig + files_bkg
-    files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/{run_name}/*.parquet")
+    files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/{run_name}/*.parquet")
     data = []
     for file in files:
         data.append(ak.from_parquet(file))
     data = combineInChunks(data)
 
-    # Replace any nans with 0
-    for br in branches:
-        data[br] = ak.nan_to_num(data[br], 0)
+    data = replaceNaNsWith0(data)
 
 
     print("all_masses: ", all_masses)
@@ -279,8 +281,8 @@ evaluateAllData("test", unique_masses)
 
 
 
-# train_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/train/*.parquet") #! Remove the mH80 bit!!!
-# train_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/train/*.parquet")
+# train_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/train/*.parquet") #! Remove the mH80 bit!!!
+# train_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/train/*.parquet")
 # train_files_bkg = [file for file in train_files_bkg if "h2h2" not in file]
 # train_files = train_files_sig + train_files_bkg
 # train_data = []
@@ -334,8 +336,8 @@ evaluateAllData("test", unique_masses)
 
 # # Now repeat for the validation and test data
 
-# val_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/val/*.parquet") #! Remove the mH80 bit!!!
-# val_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/val/*.parquet")
+# val_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/val/*.parquet") #! Remove the mH80 bit!!!
+# val_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/val/*.parquet")
 # val_files_bkg = [file for file in val_files_bkg if "h2h2" not in file]
 # val_files = val_files_sig + val_files_bkg
 # val_data = []
@@ -376,8 +378,8 @@ evaluateAllData("test", unique_masses)
 
 
 # # Now do the same for the test data
-# test_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/test/*.parquet") #! Remove the mH80 bit!!!
-# test_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/test/*.parquet")
+# test_files_sig = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/test/*.parquet") #! Remove the mH80 bit!!!
+# test_files_bkg = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/test/*.parquet")
 # test_files_bkg = [file for file in test_files_bkg if "h2h2" not in file]
 # test_files = test_files_sig + test_files_bkg
 # test_data = []
@@ -436,7 +438,7 @@ evaluateAllData("test", unique_masses)
 # del train_data
 # del val_data
 
-# test_files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_all/awkward_files/test/*.parquet")
+# test_files = glob.glob(f"/vols/cms/emc21/FCC/FCC-Study/Data/stage2_final/awkward_files/test/*.parquet")
 # test_data = []
 # for file in test_files:
 #     test_data.append(ak.from_parquet(file))

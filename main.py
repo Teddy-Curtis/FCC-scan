@@ -130,6 +130,15 @@ print("Background processes: ")
 for  proc in bkg_procs:
     print(proc)
 
+
+def replaceNaNsWith0(data):
+    for branch in branches:
+        data[branch] = ak.nan_to_num(data[branch], nan=0)
+    return data
+
+train_data = replaceNaNsWith0(train_data)
+val_data = replaceNaNsWith0(val_data)
+
 # Now normalise weights so that the signal points sum to the same weight
 # e.g. each BP sum to 1, then reweight backgrounds so that 
 # sum(backgrounds) = sum(signal)
@@ -219,6 +228,8 @@ def evaluateAllData(run_name, all_masses):
         data.append(ak.from_parquet(file))
     data = combineInChunks(data)
 
+    data = replaceNaNsWith0(data)
+
 
     print("all_masses: ", all_masses)
 
@@ -250,7 +261,7 @@ def evaluateAllData(run_name, all_masses):
 
         masses = sig_dataset.unique_masses
 
-        sig_data = trainer.getProbsForEachMass(sig_dataset, samples, masses)
+        sig_data = trainer.getProbsForEachMass(sig_dataset, masses)
 
         # Now fill in the pnn_output branches
         for pnn_output_branch in pnn_output_branches:
