@@ -291,6 +291,8 @@ class trainNN:
             "cuda" if torch.cuda.is_available() else "cpu"
         )
 
+        print(f"Device = {self.device}")
+
         ########################### model #############################
         # open module model.py that has all the models in
         model_module = importlib.import_module("fcc_study.pNN.training.model")
