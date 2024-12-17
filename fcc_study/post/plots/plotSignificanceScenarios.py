@@ -172,10 +172,10 @@ handles_con, labels = con.legend_elements()
 ###########################################################################
 ######################### Plot the other scenarios#########################
 ###########################################################################
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e365NewestData/scenario_2/run1/combine_bigBins/all_signifs.json", "r") as f:
+with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_1/run1/combine_bigBins/all_signifs.json", "r") as f:
     all_sigs_scen2 = json.load(f)
 
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e365NewestData/scenario_3/run1/combine_bigBins/all_signifs.json", "r") as f:
+with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_3/run1/combine_bigBins/all_signifs.json", "r") as f:
     all_sigs_scen3 = json.load(f)
 
 grid_central_scen2 = getSigs(all_sigs_scen2, all_ms)[0]
@@ -239,24 +239,24 @@ plt.text(0.445, 0.77, eq1, fontsize="21",
 eq1 = ("Scenario 1:\n"
         r"$M_{H^\pm} = M_A$" + "\n"
         r"$\lambda_{345} = 1e\textit{-}6$")
-
-plt.text(0.8, 0.6, eq1, fontsize="21",
-             transform=ax.transAxes)
+# put a light box around the text
+plt.text(0.65, 0.55, eq1, fontsize="21",
+             transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.5))
 
 
 eq1 = ("Scenario 2:\n"
         r"$M_{H^\pm} = M_A$" + "\n"
         r"$\lambda_{345} = \lambda_{max}$")
 
-plt.text(0.8, 0.47, eq1, fontsize="21",
-             transform=ax.transAxes)
+plt.text(0.815, 0.55, eq1, fontsize="21",
+             transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.5))
 
 eq1 = ("Scenario 3:\n"
         r"$M_{H^\pm} = M_{H^\pm}^{max}$" + "\n"
         r"$\lambda_{345} = \lambda_{max}$")
 
-plt.text(0.8, 0.34, eq1, fontsize="21",
-             transform=ax.transAxes)
+plt.text(0.815, 0.4, eq1, fontsize="21",
+             transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.5))
 
 if save_name is not None:
     name = save_name

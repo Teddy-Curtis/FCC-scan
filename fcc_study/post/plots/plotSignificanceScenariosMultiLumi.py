@@ -31,6 +31,27 @@ def parse_arguments():
         default=None,
         type=float,
         help="Center of mass energy.")
+
+    parser.add_argument(
+        "--combine_direc_others",
+        required=True,
+        default=None,
+        type=lambda s: [str(item) for item in s.split(',')],
+        help="Directory that contains the limit file.")
+
+    parser.add_argument(
+        "--lumi_others",
+        required=True,
+        default=None,
+        type=lambda s: [float(item) for item in s.split(',')],
+        help="Luminosity to scale the limits by.")
+
+    parser.add_argument(
+        "--colour_others",
+        required=True,
+        default=None,
+        type=lambda s: [str(item) for item in s.split(',')],
+        help="Colours.")
     
     parser.add_argument(
         "--save_name",
@@ -69,12 +90,12 @@ skipSigmaBands = parser.skipSigmaBands
 skip_excluded = parser.skip_excluded
 
 
-def getGrid(all_limits, all_ms, lim_val, method = 'cubic'):
+def getSigs(all_sigs, all_ms, method='cubic'):
     # Sort them in the correct order
     ind = np.lexsort((all_ms[:,1],all_ms[:,0]))    
     all_ms = all_ms[ind]
-    
-    limits = []
+
+    sigs = []
     mHs = []
     diffs = []
     for mH, mA in all_ms:
@@ -85,46 +106,47 @@ def getGrid(all_limits, all_ms, lim_val, method = 'cubic'):
 
         if mA - mH <= 30:
             try: 
-                lim = all_limits[f"mH{mH}_mA{mA}"]['MuMu'][lim_val]
+                sig = all_sigs[f"mH{mH}_mA{mA}"]['MuMu']
             except:
-                lim = 2
+                sig = 2
         else:
             try:
-                lim = all_limits[f"mH{mH}_mA{mA}"]['combined'][lim_val]
+                sig = all_sigs[f"mH{mH}_mA{mA}"]['combined']
             except:
                 try:
-                    lim = all_limits[f"mH{mH}_mA{mA}"]['MuMu'][lim_val]
+                    sig = all_sigs[f"mH{mH}_mA{mA}"]['MuMu']
                 except:
-                    lim = 2
+                    sig = 2
 
-        limits.append(lim)
+        sigs.append(sig)
+
 
     # Now get the grid
-    limits = np.array(limits)
+    sigs = np.array(sigs)
     mHs = np.array(mHs)
     diffs = np.array(diffs)
 
     # Now combine these so they are shape (n, 2)
     masses = np.vstack((mHs, diffs)).T
-    limits[limits > 1.5] = 1.5
 
     grid_x, grid_y = np.meshgrid(np.arange(np.min(mHs), np.max(mHs) + 6, 1),
                                 np.arange(0, np.max(diffs) + 1, 1), indexing='ij')
 
 
 
-    grid = griddata(masses, limits, (grid_x, grid_y), method="cubic")
+    grid = griddata(masses, sigs, (grid_x, grid_y), method=method)
 
-    # Make nan be 2
-    grid[grid > 1.5] = 1.5
-    grid[np.isnan(grid)] = 1.5
+    # # Make nan be 2
+    # grid[grid > 1.5] = 1.5
+    grid[np.isnan(grid)] = 0
+
 
     return grid.T, grid_x.T, grid_y.T, mHs, diffs
 
 
 
-with open(f"{combine_direc}/all_limits.json", "r") as f:
-    all_limits = json.load(f)
+with open(f"{combine_direc}/all_signifs.json", "r") as f:
+    all_sigs = json.load(f)
 
 
 # make the grid
@@ -132,9 +154,7 @@ all_ms = np.loadtxt(f"{combine_direc}/mass_scan.txt")
 ind = np.lexsort((all_ms[:,1],all_ms[:,0]))    
 all_ms = all_ms[ind]
 
-plot_grid, grid_x, grid_y, mHs, diffs = getGrid(all_limits, all_ms, '0.5')
-plot_grid_up, _, _, _, _ = getGrid(all_limits, all_ms, '0.84')
-plot_grid_down, _, _, _, _ = getGrid(all_limits, all_ms, '0.16')
+plot_grid, grid_x, grid_y, mHs, diffs = getSigs(all_sigs, all_ms)
 
 extent = (np.min(mHs)-1, np.max(mHs) + 5, 0, np.max(diffs))
 
@@ -163,76 +183,39 @@ else:
 
 
 con_filled = plt.contourf(plot_grid, np.array([0, 1]), colors=['white', 'white'],
-                hatches = ['///', '//////'], levels=[-10, 1], alpha=0.5, extent=extent, origin='lower')
+                hatches = ['///', '//////'], levels=[5, np.inf], alpha=0.5, extent=extent, origin='lower')
 handles_con_filled, labels_filled = con_filled.legend_elements()
 
 
-con = plt.contour(plot_grid, np.array([1]) , colors=['black'], linewidths=[2], extent=extent, origin='lower')
+con = plt.contour(plot_grid, np.array([5]) , colors=['black'], linewidths=[2], extent=extent, origin='lower')
 handles_con, labels = con.legend_elements()
-
+legend_elements += handles_con
+legend_names += [f"5$\sigma$, {lumi}" + r"$fb^{-1}$"]
 ###########################################################################
 ######################### Plot the other scenarios#########################
 ###########################################################################
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_2/run1/combine_bigBins/all_limits.json", "r") as f:
-    all_limits_scen2 = json.load(f)
+combine_direc_others = parser.combine_direc_others
+lumi_others = parser.lumi_others
+colour_others = parser.colour_others
+# Now for the second combine_direc
+for combine_direc_other, lumi_other, colour_other in zip(combine_direc_others, lumi_others, colour_others):
+    with open(f"{combine_direc_other}/all_signifs.json", "r") as f:
+        all_signifs_other = json.load(f)
+    # make the grid
+    plot_grid_otherLumi = getSigs(all_signifs_other, all_ms)[0]
 
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_3/run1/combine_bigBins/all_limits.json", "r") as f:
-    all_limits_scen3 = json.load(f)
+    con_scen2 = ax.contour(plot_grid_otherLumi, np.array([5]) , colors=['red'], linewidths=[2],
+                        extent=extent, 
+                        origin='lower', linestyles='dashed')
+    handles_conscen2, labels_conscen2 = con_scen2.legend_elements()
 
-grid_central_scen2 = getGrid(all_limits_scen2, all_ms, '0.5')[0]
-grid_up_scen2 = getGrid(all_limits_scen2, all_ms, '0.84')[0]
-grid_down_scen2 = getGrid(all_limits_scen2, all_ms, '0.16')[0]
-
-grid_central_scen3 = getGrid(all_limits_scen3, all_ms, '0.5')[0]
-grid_up_scen3 = getGrid(all_limits_scen3, all_ms, '0.84')[0]
-grid_down_scen3 = getGrid(all_limits_scen3, all_ms, '0.16')[0]
-
-con_scen2 = ax.contour(grid_central_scen2, np.array([1]) , colors=['red'], linewidths=[1.5],
-                    extent=extent, 
-                    origin='lower')
-handles_conscen2, labels_conscen2 = con_scen2.legend_elements()
-
-con_scen3 = ax.contour(grid_central_scen3, np.array([1]) , colors=['blue'], linewidths=[1.5],
-                    extent=extent, 
-                    origin='lower')
-handles_conscen3, labels_conscen3 = con_scen3.legend_elements()
-
-legend_elements += handles_con + handles_conscen2 + handles_conscen3 + handles_con_filled  + line
-legend_names += ["Scenario-1 95\% CL", "Scenario-2 95\% CL", "Scenario-3 95\% CL", "Excluded", '$M_H$ + $M_A$ = $\sqrt{s}$']
+    legend_elements += handles_conscen2
+    legend_names += [f"5$\sigma$, {lumi_other}" + r"$fb^{-1}$"]
 
 
-# Now plot all the sigma bands
-con_up = plt.contour(plot_grid_up, np.array([1]) , colors=['lime'],
-                    linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
-handles_con_up, labels_con_up = con_up.legend_elements()
-con_down = plt.contour(plot_grid_down, np.array([1]) , colors=['lime'],
-                    linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
-handles_con_down, labels_con_down = con_down.legend_elements()
+legend_elements += handles_con_filled  + line
+legend_names += ["Discovery", '$M_H$ + $M_A$ = $\sqrt{s}$']
 
-legend_elements += handles_con_up 
-legend_names += ["Scenario 1 $\pm 1 \sigma$"]
-
-# con_up_scen2 = plt.contour(grid_up_scen2, np.array([1]) , colors=['orange'],
-#                     linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
-# handles_con_up_scen2, labels_con_up_scen2 = con_up_scen2.legend_elements()
-
-# con_down_scen2 = plt.contour(grid_down_scen2, np.array([1]) , colors=['orange'],
-#                     linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
-# handles_con_down_scen2, labels_con_down_scen2 = con_down_scen2.legend_elements()
-
-# legend_elements += handles_con_up_scen2
-# legend_names += ["Scen. 2 $\pm 1 \sigma$"]
-
-# con_up_scen3 = plt.contour(grid_up_scen3, np.array([1]) , colors=['pink'],
-#                     linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
-# handles_con_up_scen3, labels_con_up_scen3 = con_up_scen3.legend_elements()
-
-# con_down_scen3 = plt.contour(grid_down_scen3, np.array([1]) , colors=['pink'],
-#                     linewidths=[2.5], linestyles='dotted', extent=extent, origin='lower')
-# handles_con_down_scen3, labels_con_down_scen3 = con_down_scen3.legend_elements()
-
-# legend_elements += handles_con_up_scen3
-# legend_names += ["Scen. 3 $\pm 1 \sigma$"]
 
 
 if not skip_excluded:
@@ -257,8 +240,8 @@ plt.xlabel("$M_H$ (GeV)")
 plt.ylabel(r"$\Delta(M_A,M_H) = M_A - M_H$ (GeV)")   
 
 
-plt.text(0.55, 1.013, r"FCC-ee,  $\sqrt{s}$" + f"={ecom} GeV,  " + f"Lumi={lumi}" + "$ab^{-1}$", fontsize="21",
-             transform=ax.transAxes)
+plt.text(1, 1.013, r"FCC-ee,  $\sqrt{s}$" + f"={ecom} GeV", fontsize="21",
+             transform=ax.transAxes, horizontalalignment='right')
 
 
 
@@ -270,37 +253,23 @@ eq1 = (r"\begin{eqnarray*}"
         r"\end{array}"
        r"\end{eqnarray*}")
 
-plt.text(0.37, 0.73, eq1, fontsize="21",
+plt.text(0.445, 0.77, eq1, fontsize="21",
              transform=ax.transAxes)
 
 
 
-eq1 = ("Scenario 1:\n"
+eq1 = ("IDM:\n"
         r"$M_{H^\pm} = M_A$" + "\n"
         r"$\lambda_{345} = 1e\textit{-}6$")
 # put a light box around the text
-plt.text(0.65, 0.55, eq1, fontsize="21",
+plt.text(0.8, 0.6, eq1, fontsize="21",
              transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.5))
 
-
-eq1 = ("Scenario 2:\n"
-        r"$M_{H^\pm} = M_A$" + "\n"
-        r"$\lambda_{345} = \lambda_{max}$")
-
-plt.text(0.815, 0.55, eq1, fontsize="21",
-             transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.5))
-
-eq1 = ("Scenario 3:\n"
-        r"$M_{H^\pm} = M_{H^\pm}^{max}$" + "\n"
-        r"$\lambda_{345} = \lambda_{max}$")
-
-plt.text(0.815, 0.4, eq1, fontsize="21",
-             transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.5))
 
 if save_name is not None:
     name = save_name
 else:
-    name = "limit_scenarios"
+    name = "significance_scenarios_multiLumi"
 
 plt.savefig(f"{combine_direc}/{name}.pdf", bbox_inches='tight')
 plt.savefig(f"{combine_direc}/{name}.png", bbox_inches='tight')
