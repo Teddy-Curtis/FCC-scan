@@ -414,7 +414,7 @@ def doInterpolation(train_direc, output_direc):
     # Load in the mass scan
     mass_pairs = np.loadtxt(f"{output_direc}/mass_scan.txt")
 
-    bins = np.linspace(0.9, 1, 16)
+    bins = np.linspace(0.9, 1, 10)
 
     # Load the signal and weights
     branches = ['n_muons', 'n_electrons', 'pnn_output_*', 'weight_nominal_scaled', 'mH', 'mA', 'Zcand_m']

@@ -125,6 +125,7 @@ else:
 
 
     if parser.diff != 0.0:
+        print(f"Adding additional masses")
         diff = parser.diff
         ecom = parser.ecom
         # Add in additional masses
@@ -147,6 +148,20 @@ else:
                     masses_to_add.append([mH, mA_])
 
         mass_scan = mass_scan + masses_to_add
+
+        mHs_add = np.arange(mH_min, mH_max+1, 1)
+        more_masses = []
+        for mH in mHs_add:
+            mA_max = ecom - mH
+
+            mAs_add = np.arange(mA_max - 25, mA_max + 2, 2)
+            for mA_ in mAs_add:
+                if mA_ - mH <= 8:
+                    continue
+                if [mH, mA_] not in mass_scan:
+                    more_masses.append([mH, mA_])
+
+        mass_scan = mass_scan + more_masses
 
     mass_scan = np.array(mass_scan)
 

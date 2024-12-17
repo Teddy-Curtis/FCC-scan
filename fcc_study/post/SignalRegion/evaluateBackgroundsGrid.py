@@ -100,7 +100,7 @@ for m, ms in zip(mass_pairs, mass_pairs_scaled):
     print(f"{m} -> {ms}")
 
 
-bins = np.linspace(0.9, 1, 16)
+bins = np.linspace(0.9, 1, 10)
 
 # Load the signal and weights
 # branches = ['n_muons', 'n_electrons', 'pnn_output_*', 'weight_nominal_scaled', 'mH', 'mA']
