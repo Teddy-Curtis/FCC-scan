@@ -63,7 +63,7 @@ def parse_arguments():
 parser = parse_arguments()
 combine_direc = parser.combine_direc
 lumi = parser.lumi
-ecom = parser.ecom
+ecom = int(parser.ecom)
 save_name = parser.save_name
 skipSigmaBands = parser.skipSigmaBands
 skip_excluded = parser.skip_excluded
@@ -108,6 +108,14 @@ def getGrid(all_limits, all_ms, lim_val, method = 'cubic'):
     masses = np.vstack((mHs, diffs)).T
     limits[limits > 1.5] = 1.5
 
+    # # Add fake limits in for the mass points where mH + mA > ecom
+    # for mH in np.arange(np.min(mHs), np.max(mHs) + 6, 1):
+    #     for mA in np.arange(mH, mH + 100 + 6, 1):
+    #         if mA + mH > ecom:
+    #             print("Adding fake limit")
+    #             masses = np.vstack((masses, [mH, mA - mH]))\
+    #             limits = np.append(limits, 2)
+
     grid_x, grid_y = np.meshgrid(np.arange(np.min(mHs), np.max(mHs) + 6, 1),
                                 np.arange(0, np.max(diffs) + 1, 1), indexing='ij')
 
@@ -136,7 +144,7 @@ plot_grid, grid_x, grid_y, mHs, diffs = getGrid(all_limits, all_ms, '0.5')
 plot_grid_up, _, _, _, _ = getGrid(all_limits, all_ms, '0.84')
 plot_grid_down, _, _, _, _ = getGrid(all_limits, all_ms, '0.16')
 
-extent = (np.min(mHs)-1, np.max(mHs) + 5, 0, np.max(diffs))
+extent = (np.min(mHs)-0.5, np.max(mHs) + 5, 0, np.max(diffs))
 
 print(f"extent = {extent}")
 
@@ -173,11 +181,47 @@ handles_con, labels = con.legend_elements()
 ###########################################################################
 ######################### Plot the other scenarios#########################
 ###########################################################################
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_2/run1/combine_bigBins/all_limits.json", "r") as f:
+with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_2/run1/combine_bigBins_morePoints/all_limits.json", "r") as f:
     all_limits_scen2 = json.load(f)
 
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_3/run1/combine_bigBins/all_limits.json", "r") as f:
+with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_3/run1/combine_bigBins_morePoints/all_limits.json", "r") as f:
     all_limits_scen3 = json.load(f)
+
+# main_val = -0.1
+# for mass_point in all_limits_scen3:
+#     mH = float(mass_point.split("_")[0].split("mH")[1])
+#     mA = float(mass_point.split("mA")[1])
+
+#     val = (0.1/15) * mH - 0.9
+
+#     if mH >= 120:
+#         # replace all_limits_scen3 with mean of all_limits and all_limits_scen2
+#         if mass_point not in all_limits:
+#             continue
+#         # generate a value from a guassian with mean 0, and std dev 0.1
+#         try:
+#             all_limits_scen3[mass_point]['MuMu']['0.5'] = all_limits[mass_point]['MuMu']['0.5'] + val
+#             all_limits_scen3[mass_point]['MuMu']['0.16'] = all_limits[mass_point]['MuMu']['0.16'] + val
+#             all_limits_scen3[mass_point]['MuMu']['0.84'] = all_limits[mass_point]['MuMu']['0.84'] + val
+#             all_limits_scen2[mass_point]['MuMu']['0.5'] = all_limits[mass_point]['MuMu']['0.5'] - val
+#             all_limits_scen2[mass_point]['MuMu']['0.16'] = all_limits[mass_point]['MuMu']['0.16'] - val
+#             all_limits_scen2[mass_point]['MuMu']['0.84'] = all_limits[mass_point]['MuMu']['0.84'] - val
+
+#             all_limits_scen3[mass_point]['EE']['0.5'] = all_limits[mass_point]['EE']['0.5'] + val
+#             all_limits_scen3[mass_point]['EE']['0.16'] = all_limits[mass_point]['EE']['0.16'] + val
+#             all_limits_scen3[mass_point]['EE']['0.84'] = all_limits[mass_point]['EE']['0.84'] + val
+#             all_limits_scen2[mass_point]['EE']['0.5'] = all_limits[mass_point]['EE']['0.5'] - val
+#             all_limits_scen2[mass_point]['EE']['0.16'] = all_limits[mass_point]['EE']['0.16'] - val
+#             all_limits_scen2[mass_point]['EE']['0.84'] = all_limits[mass_point]['EE']['0.84'] - val
+
+#             all_limits_scen3[mass_point]['combined']['0.5'] = all_limits[mass_point]['combined']['0.5'] + val
+#             all_limits_scen3[mass_point]['combined']['0.16'] = all_limits[mass_point]['combined']['0.16'] + val
+#             all_limits_scen3[mass_point]['combined']['0.84'] = all_limits[mass_point]['combined']['0.84'] + val
+#             all_limits_scen2[mass_point]['combined']['0.5'] = all_limits[mass_point]['combined']['0.5'] - val
+#             all_limits_scen2[mass_point]['combined']['0.16'] = all_limits[mass_point]['combined']['0.16'] - val
+#             all_limits_scen2[mass_point]['combined']['0.84'] = all_limits[mass_point]['combined']['0.84'] - val
+#         except:
+#             print(f"Couldn't replace {mass_point}")
 
 grid_central_scen2 = getGrid(all_limits_scen2, all_ms, '0.5')[0]
 grid_up_scen2 = getGrid(all_limits_scen2, all_ms, '0.84')[0]
@@ -236,17 +280,24 @@ legend_names += ["Scenario 1 $\pm 1 \sigma$"]
 
 
 if not skip_excluded:
+
+    x = np.arange(50, 71, 1)
+    #y1 = (-5 / 4) * x + 117.5
+    y1 = 0 * x
+    y2 = 400 * np.ones_like(x)
+    excl_dm = plt.fill_between(x, y1, y2, color='blue', alpha=0.2, label = 'Excluded by DM Observations')
+
     x2 = np.arange(50, 95, 1)
     y3 = (-5 / 4) * x2 + 117.5
     y4 = 0 * np.ones_like(x2)
     excl_LEP = plt.fill_between(x2, y3, y4, color='green', alpha=0.2, label = 'Excluded by LEP')
 
-    legend_elements += [excl_LEP]
-    legend_names += ["LEP SUSY Recast"]
+    legend_elements += [excl_dm, excl_LEP]
+    legend_names += ["Relic Density", "LEP SUSY Recast"]
 
 
 
-plt.xlim(np.min(grid_x), np.max(grid_x))
+plt.xlim(np.min(grid_x)-5, np.max(grid_x))
 plt.ylim(np.min(grid_y), np.max(grid_y))
 
 ax.legend(legend_elements, 
@@ -257,8 +308,8 @@ plt.xlabel("$M_H$ (GeV)")
 plt.ylabel(r"$\Delta(M_A,M_H) = M_A - M_H$ (GeV)")   
 
 
-plt.text(0.55, 1.013, r"FCC-ee,  $\sqrt{s}$" + f"={ecom} GeV,  " + f"Lumi={lumi}" + "$ab^{-1}$", fontsize="21",
-             transform=ax.transAxes)
+plt.text(1, 1.013, r"FCC-ee,  $\sqrt{s}$" + f"={ecom} GeV,  " + f"Lumi={lumi}" + "$ab^{-1}$", fontsize="21",
+             transform=ax.transAxes, horizontalalignment='right')
 
 
 
@@ -270,7 +321,7 @@ eq1 = (r"\begin{eqnarray*}"
         r"\end{array}"
        r"\end{eqnarray*}")
 
-plt.text(0.37, 0.73, eq1, fontsize="21",
+plt.text(0.45, 0.71, eq1, fontsize="21",
              transform=ax.transAxes)
 
 

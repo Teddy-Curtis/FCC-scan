@@ -84,7 +84,7 @@ def parse_arguments():
 parser = parse_arguments()
 combine_direc = parser.combine_direc
 lumi = parser.lumi
-ecom = parser.ecom
+ecom = int(parser.ecom)
 save_name = parser.save_name
 skipSigmaBands = parser.skipSigmaBands
 skip_excluded = parser.skip_excluded
@@ -156,7 +156,7 @@ all_ms = all_ms[ind]
 
 plot_grid, grid_x, grid_y, mHs, diffs = getSigs(all_sigs, all_ms)
 
-extent = (np.min(mHs)-1, np.max(mHs) + 5, 0, np.max(diffs))
+extent = (np.min(mHs)-0.5, np.max(mHs) + 5, 0, np.max(diffs))
 
 print(f"extent = {extent}")
 
@@ -190,7 +190,7 @@ handles_con_filled, labels_filled = con_filled.legend_elements()
 con = plt.contour(plot_grid, np.array([5]) , colors=['black'], linewidths=[2], extent=extent, origin='lower')
 handles_con, labels = con.legend_elements()
 legend_elements += handles_con
-legend_names += [f"5$\sigma$, {lumi}" + r"$fb^{-1}$"]
+legend_names += [f"5$\sigma$, {lumi}" + r" $ab^{-1}$"]
 ###########################################################################
 ######################### Plot the other scenarios#########################
 ###########################################################################
@@ -210,7 +210,11 @@ for combine_direc_other, lumi_other, colour_other in zip(combine_direc_others, l
     handles_conscen2, labels_conscen2 = con_scen2.legend_elements()
 
     legend_elements += handles_conscen2
-    legend_names += [f"5$\sigma$, {lumi_other}" + r"$fb^{-1}$"]
+    
+    if lumi_other.is_integer():
+        lumi_other = int(lumi_other)
+        
+    legend_names += [f"5$\sigma$, {lumi_other}" + r" $ab^{-1}$"]
 
 
 legend_elements += handles_con_filled  + line
@@ -219,17 +223,24 @@ legend_names += ["Discovery", '$M_H$ + $M_A$ = $\sqrt{s}$']
 
 
 if not skip_excluded:
+
+    x = np.arange(50, 71, 1)
+    #y1 = (-5 / 4) * x + 117.5
+    y1 = 0 * x
+    y2 = 400 * np.ones_like(x)
+    excl_dm = plt.fill_between(x, y1, y2, color='blue', alpha=0.2, label = 'Excluded by DM Observations')
+
     x2 = np.arange(50, 95, 1)
     y3 = (-5 / 4) * x2 + 117.5
     y4 = 0 * np.ones_like(x2)
     excl_LEP = plt.fill_between(x2, y3, y4, color='green', alpha=0.2, label = 'Excluded by LEP')
 
-    legend_elements += [excl_LEP]
-    legend_names += ["LEP SUSY Recast"]
+    legend_elements += [excl_dm, excl_LEP]
+    legend_names += ["Relic Density", "LEP SUSY Recast"]
 
 
 
-plt.xlim(np.min(grid_x), np.max(grid_x))
+plt.xlim(np.min(grid_x)-5, np.max(grid_x))
 plt.ylim(np.min(grid_y), np.max(grid_y))
 
 ax.legend(legend_elements, 
@@ -242,7 +253,6 @@ plt.ylabel(r"$\Delta(M_A,M_H) = M_A - M_H$ (GeV)")
 
 plt.text(1, 1.013, r"FCC-ee,  $\sqrt{s}$" + f"={ecom} GeV", fontsize="21",
              transform=ax.transAxes, horizontalalignment='right')
-
 
 
 eq1 = (r"\begin{eqnarray*}"

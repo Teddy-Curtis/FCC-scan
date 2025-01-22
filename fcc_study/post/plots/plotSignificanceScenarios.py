@@ -172,10 +172,10 @@ handles_con, labels = con.legend_elements()
 ###########################################################################
 ######################### Plot the other scenarios#########################
 ###########################################################################
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_1/run1/combine_bigBins/all_signifs.json", "r") as f:
+with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e365NewestData/scenario_2/run1/combine_bigBins/all_signifs.json", "r") as f:
     all_sigs_scen2 = json.load(f)
 
-with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e240NewestData/scenario_3/run1/combine_bigBins/all_signifs.json", "r") as f:
+with open(f"/vols/cms/emc21/FCC/FCC-Study/runs/e365NewestData/scenario_3/run1/combine_bigBins/all_signifs.json", "r") as f:
     all_sigs_scen3 = json.load(f)
 
 grid_central_scen2 = getSigs(all_sigs_scen2, all_ms)[0]

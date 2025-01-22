@@ -63,7 +63,7 @@ def parse_arguments():
 parser = parse_arguments()
 combine_direc = parser.combine_direc
 lumi = parser.lumi
-ecom = parser.ecom
+ecom = int(parser.ecom)
 save_name = parser.save_name
 skipSigmaBands = parser.skipSigmaBands
 skip_excluded = parser.skip_excluded
@@ -135,7 +135,7 @@ all_ms = all_ms[ind]
 
 plot_grid, grid_x, grid_y, mHs, diffs = getSigs(all_sigs, all_ms)
 
-extent = (np.min(mHs)-1, np.max(mHs) + 5, 0, np.max(diffs))
+extent = (np.min(mHs)-0.5, np.max(mHs) + 5, 0, np.max(diffs))
 
 print(f"extent = {extent}")
 
@@ -179,17 +179,25 @@ legend_names += ["Scenario 5$\sigma$", "Discovery", '$M_H$ + $M_A$ = $\sqrt{s}$'
 
 
 if not skip_excluded:
+
+    x = np.arange(50, 71, 1)
+    #y1 = (-5 / 4) * x + 117.5
+    y1 = 0 * x
+    y2 = 400 * np.ones_like(x)
+    excl_dm = plt.fill_between(x, y1, y2, color='blue', alpha=0.2, label = 'Excluded by DM Observations')
+
+
     x2 = np.arange(50, 95, 1)
     y3 = (-5 / 4) * x2 + 117.5
     y4 = 0 * np.ones_like(x2)
     excl_LEP = plt.fill_between(x2, y3, y4, color='green', alpha=0.2, label = 'Excluded by LEP')
 
-    legend_elements += [excl_LEP]
-    legend_names += ["LEP SUSY Recast"]
+    legend_elements += [excl_dm, excl_LEP]
+    legend_names += ["Relic Density", "LEP SUSY Recast"]
 
 
 
-plt.xlim(np.min(grid_x), np.max(grid_x))
+plt.xlim(np.min(grid_x)-5, np.max(grid_x))
 plt.ylim(np.min(grid_y), np.max(grid_y))
 
 ax.legend(legend_elements, 
@@ -200,9 +208,8 @@ plt.xlabel("$M_H$ (GeV)")
 plt.ylabel(r"$\Delta(M_A,M_H) = M_A - M_H$ (GeV)")   
 
 
-plt.text(0.55, 1.013, r"FCC-ee,  $\sqrt{s}$" + f"={ecom} GeV,  " + f"Lumi={lumi}" + "$ab^{-1}$", fontsize="21",
-             transform=ax.transAxes)
-
+plt.text(1, 1.013, r"FCC-ee,  $\sqrt{s}$" + f"={ecom} GeV,  " + f"Lumi={lumi}" + "$ab^{-1}$", fontsize="21",
+             transform=ax.transAxes, horizontalalignment='right')
 
 
 eq1 = (r"\begin{eqnarray*}"
@@ -213,7 +220,7 @@ eq1 = (r"\begin{eqnarray*}"
         r"\end{array}"
        r"\end{eqnarray*}")
 
-plt.text(0.45, 0.81, eq1, fontsize="21",
+plt.text(0.45, 0.78, eq1, fontsize="21",
              transform=ax.transAxes)
 
 
@@ -222,7 +229,7 @@ eq1 = ("IDM:\n"
         r"$M_{H^\pm} = M_A$" + "\n"
         r"$\lambda_{345} = 1e\textit{-}6$")
 # put a light box around the text
-plt.text(0.8, 0.65, eq1, fontsize="21",
+plt.text(0.8, 0.62, eq1, fontsize="21",
              transform=ax.transAxes, bbox=dict(facecolor='white', alpha=0.5))
 
 
